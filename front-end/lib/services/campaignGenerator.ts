@@ -1,0 +1,538 @@
+import { scrapeWebsite, extractCompanyName } from './websiteScraper';
+import { analyzeCompanyAndICP, AnalysisProgressCallback } from './icpAnalyzer';
+import { initializeLeadSearch, waitForLeadResults, buildSalesNavUrl } from './leadFinder';
+import { generateEmailsForLeads } from './emailWriter';
+import { CampaignData, GenerateCampaignRequest, ICPSettings, TargetGeo, LinkedInGeoLocation } from '../types';
+import { CampaignDebugData } from '../types/debug';
+
+export type CampaignStatus = 
+  | 'scraping_website'
+  | 'analyzing_company'
+  | 'finding_leads'
+  | 'waiting_for_leads'
+  | 'writing_emails'
+  | 'complete'
+  | 'error';
+
+export interface CampaignProgress {
+  status: CampaignStatus;
+  message: string;
+  progress: number; // 0-100
+  campaign?: CampaignData;
+  debugData?: CampaignDebugData;
+  /** Partial debug data updated in real-time as agents complete */
+  liveDebug?: LiveDebugData;
+  error?: string;
+}
+
+export interface CampaignResult {
+  campaign: CampaignData;
+  debugData?: CampaignDebugData;
+}
+
+/**
+ * Live debug data that gets updated as each agent completes
+ */
+export interface LiveDebugData {
+  pipelineId: string;
+  domain: string;
+  startedAt: string;
+  currentAgent: string;
+  completedAgents: LiveAgentResult[];
+  allPersonas?: {
+    id: string;
+    name: string;
+    titles: string[];
+  }[];
+  selectedPersona?: {
+    id: string;
+    name: string;
+    reason: string;
+  };
+  rankings?: {
+    personaId: string;
+    personaName: string;
+    score: number;
+  }[];
+  finalFilters?: {
+    titles: string[];
+    industries: string[];
+    locations: string[];
+    companySize: string;
+  };
+  salesNavUrl?: string;
+}
+
+/**
+ * Detailed result from each agent including I/O
+ */
+export interface LiveAgentResult {
+  name: string;
+  duration: number;
+  result: string;
+  details?: string[];
+  /** The prompt sent to the LLM */
+  prompt?: string;
+  /** The raw response from the LLM */
+  response?: string;
+  /** Parsed/structured output */
+  output?: unknown;
+}
+
+// In-memory store for campaign generation progress
+const campaignProgress: Map<string, CampaignProgress> = new Map();
+
+export function getCampaignProgress(slug: string): CampaignProgress | undefined {
+  return campaignProgress.get(slug);
+}
+
+function updateProgress(slug: string, progress: CampaignProgress) {
+  campaignProgress.set(slug, progress);
+  console.log(`[CampaignGenerator] ${slug}: ${progress.status} (${progress.progress}%) - ${progress.message}`);
+}
+
+/**
+ * Generate a complete campaign from a domain
+ * Optimized with parallel execution where possible
+ */
+export async function generateCampaign(
+  request: GenerateCampaignRequest & { captureDebug?: boolean }
+): Promise<CampaignResult> {
+  const { domain, slug, icpSettings, salesNavigatorUrl, captureDebug = false } = request;
+  
+  // Debug data accumulator
+  let debugData: CampaignDebugData | undefined;
+  
+  // Live debug data for real-time updates
+  const liveDebug: LiveDebugData = {
+    pipelineId: `campaign-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    domain,
+    startedAt: new Date().toISOString(),
+    currentAgent: 'Website Scraper',
+    completedAgents: [],
+  };
+  
+  console.log(`[CampaignGenerator] Starting campaign generation for ${domain}...`);
+  const startTime = Date.now();
+
+  try {
+    // Check if Apify is configured
+    const hasApify = !!process.env.APIFY_API_TOKEN;
+    
+    // If we have ICP settings or sales nav URL, we can start lead search EARLY (in parallel with scraping)
+    let leadSearchPromise: Promise<{ leads: LinkedInLead[] }> | null = null;
+    
+    // Need to import LinkedInLead type for the promise
+    type LinkedInLead = {
+      about: string;
+      company: string;
+      company_id: string;
+      first_name: string;
+      full_name: string;
+      job_title: string;
+      last_name: string;
+      linkedin_url: string;
+      location: string;
+      profile_id: string;
+    };
+    
+    if (hasApify && (salesNavigatorUrl || icpSettings)) {
+      const searchUrl = salesNavigatorUrl || buildSalesNavUrl(icpSettings!);
+      console.log('[CampaignGenerator] Starting lead search early (parallel with website analysis)');
+      
+      updateProgress(slug, {
+        status: 'finding_leads',
+        message: 'Starting lead search...',
+        progress: 10,
+      });
+      
+      // Start lead search in background - don't await yet!
+      leadSearchPromise = initializeLeadSearch(searchUrl, 25)
+        .then(result => waitForLeadResults(result.requestId))
+        .then(result => ({ leads: result.leads || [] }))
+        .catch(err => {
+          console.error('[CampaignGenerator] Early lead search failed:', err);
+          return { leads: [] as LinkedInLead[] };
+        });
+    }
+
+    // Step 1: Scrape website
+    const scrapeStart = Date.now();
+    updateProgress(slug, {
+      status: 'scraping_website',
+      message: 'Analyzing your website...',
+      progress: 15,
+      liveDebug: captureDebug ? liveDebug : undefined,
+    });
+
+    const scrapedWebsite = await scrapeWebsite(domain);
+    const scrapeEnd = Date.now();
+    
+    // Update live debug with scrape completion
+    if (captureDebug) {
+      liveDebug.completedAgents.push({
+        name: 'Website Scraper',
+        duration: scrapeEnd - scrapeStart,
+        result: `Scraped ${domain}`,
+        details: [scrapedWebsite.title || 'No title'],
+      });
+      liveDebug.currentAgent = 'Company Profiler';
+    }
+
+    // Step 2: Analyze company and ICP
+    updateProgress(slug, {
+      status: 'analyzing_company',
+      message: 'Understanding your business and ideal customers...',
+      progress: 30,
+      liveDebug: captureDebug ? liveDebug : undefined,
+    });
+
+    // Create progress callback for live updates
+    const analysisProgressCallback: AnalysisProgressCallback | undefined = captureDebug
+      ? (update) => {
+          liveDebug.currentAgent = update.currentAgent;
+          
+          if (update.completedAgent) {
+            liveDebug.completedAgents.push(update.completedAgent);
+          }
+          if (update.allPersonas) {
+            liveDebug.allPersonas = update.allPersonas;
+          }
+          if (update.selectedPersona) {
+            liveDebug.selectedPersona = update.selectedPersona;
+          }
+          if (update.rankings) {
+            liveDebug.rankings = update.rankings;
+          }
+          if (update.finalFilters) {
+            liveDebug.finalFilters = update.finalFilters;
+          }
+          if (update.salesNavUrl) {
+            liveDebug.salesNavUrl = update.salesNavUrl;
+          }
+          
+          // Update progress store with new live debug
+          updateProgress(slug, {
+            status: 'analyzing_company',
+            message: `Running ${update.currentAgent}...`,
+            progress: 30 + (liveDebug.completedAgents.length * 8),
+            liveDebug,
+          });
+        }
+      : undefined;
+
+    const analysis = await analyzeCompanyAndICP(
+      scrapedWebsite, 
+      domain, 
+      undefined, 
+      captureDebug,
+      analysisProgressCallback
+    );
+    const finalICP = icpSettings || analysis.suggestedICP;
+    
+    // Initialize debug data with analysis trace
+    if (captureDebug && analysis.debugTrace) {
+      debugData = {
+        analysis: analysis.debugTrace,
+      };
+    }
+
+    // Step 3: Get leads (either from early search or start new search)
+    let leads: LinkedInLead[];
+    
+    if (leadSearchPromise) {
+      // Wait for the early lead search to complete
+      updateProgress(slug, {
+        status: 'waiting_for_leads',
+        message: 'Waiting for lead data...',
+        progress: 50,
+      });
+      
+      const results = await leadSearchPromise;
+      leads = results.leads || [];
+      
+      // If early search failed, fall back to mock leads
+      if (leads.length === 0) {
+        console.log('[CampaignGenerator] Early search returned no leads, using mock data');
+        leads = generateMockLeads(finalICP);
+      }
+    } else if (hasApify) {
+      // Start lead search now (we didn't have ICP settings earlier)
+      if (captureDebug) {
+        liveDebug.currentAgent = 'Lead Finder';
+      }
+      updateProgress(slug, {
+        status: 'finding_leads',
+        message: 'Searching for qualified leads...',
+        progress: 60,
+        liveDebug: captureDebug ? liveDebug : undefined,
+      });
+      
+      const searchUrl = salesNavigatorUrl || buildSalesNavUrl(finalICP);
+      const leadSearchStart = Date.now();
+      
+      try {
+        console.log('[CampaignGenerator] Using Sales Navigator URL:', searchUrl);
+        const searchResult = await initializeLeadSearch(searchUrl, 25);
+        
+        updateProgress(slug, {
+          status: 'waiting_for_leads',
+          message: 'Waiting for lead data (this may take a few minutes)...',
+          progress: 50,
+        });
+
+        const results = await waitForLeadResults(searchResult.requestId);
+        leads = results.leads || [];
+        
+        // Capture lead search debug data
+        if (captureDebug && debugData) {
+          const leadSearchEnd = Date.now();
+          debugData.leadSearch = {
+            salesNavUrl: searchUrl,
+            requestId: searchResult.requestId,
+            startedAt: new Date(leadSearchStart).toISOString(),
+            completedAt: new Date(leadSearchEnd).toISOString(),
+            durationMs: leadSearchEnd - leadSearchStart,
+            leadsFound: leads.length,
+            status: leads.length > 0 ? 'completed' : 'timeout',
+          };
+        }
+      } catch (apifyError) {
+        console.error('[CampaignGenerator] Apify error, falling back to mock leads:', apifyError);
+        leads = generateMockLeads(finalICP);
+        
+        // Capture error in debug data
+        if (captureDebug && debugData) {
+          debugData.leadSearch = {
+            salesNavUrl: searchUrl,
+            requestId: 'error',
+            startedAt: new Date(leadSearchStart).toISOString(),
+            leadsFound: 0,
+            status: 'error',
+          };
+        }
+      }
+    } else {
+      // No Apify configured - use mock leads
+      console.log('[CampaignGenerator] Apify not configured, using demo leads');
+      leads = generateMockLeads(finalICP);
+    }
+
+    // Step 4: Write personalized emails (parallel)
+    if (captureDebug) {
+      liveDebug.currentAgent = 'Email Writer';
+      liveDebug.completedAgents.push({
+        name: 'Lead Finder',
+        duration: 0, // Will be updated by lead search logic
+        result: `Found ${leads.length} leads`,
+        details: leads.slice(0, 3).map(l => l.full_name),
+      });
+    }
+    updateProgress(slug, {
+      status: 'writing_emails',
+      message: 'Crafting personalized emails in parallel...',
+      progress: 80,
+      liveDebug: captureDebug ? liveDebug : undefined,
+    });
+
+    const emailGenStart = Date.now();
+    const qualifiedLeads = await generateEmailsForLeads(
+      leads,
+      analysis.companyInfo,
+      'Bella',
+      5
+    );
+    const emailGenEnd = Date.now();
+    
+    // Capture email generation debug data
+    if (captureDebug && debugData) {
+      debugData.emailGeneration = {
+        startedAt: new Date(emailGenStart).toISOString(),
+        completedAt: new Date(emailGenEnd).toISOString(),
+        durationMs: emailGenEnd - emailGenStart,
+        emailsGenerated: qualifiedLeads.length,
+        parallelBatchSize: 5,
+      };
+    }
+
+    // Step 5: Build campaign data
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(`[CampaignGenerator] Campaign completed in ${elapsed}s`);
+
+    updateProgress(slug, {
+      status: 'complete',
+      message: `Campaign ready! (${elapsed}s)`,
+      progress: 100,
+    });
+
+    // Extract location text (handle both string and object formats)
+    const firstLocation = finalICP.locations[0];
+    const locationText = typeof firstLocation === 'object' && 'text' in firstLocation 
+      ? firstLocation.text 
+      : (typeof firstLocation === 'string' ? firstLocation : 'United States');
+
+    const campaign: CampaignData = {
+      id: `campaign-${Date.now()}`,
+      slug,
+      companyName: analysis.companyInfo.name || extractCompanyName(domain),
+      websiteUrl: domain.startsWith('http') ? domain : `https://${domain}`,
+      location: locationText,
+      helpsWith: analysis.companyInfo.whatTheyDo,
+      greatAt: analysis.companyInfo.valueProposition,
+      icpAttributes: [
+        finalICP.titles.join(', '),
+        finalICP.companySize,
+        finalICP.industries.map(i => typeof i === 'object' && 'text' in i ? i.text : i).join(', '),
+      ],
+      qualifiedLeads,
+      targetGeo: buildTargetGeo(finalICP),
+      priceTier1: 100,
+      priceTier1Emails: 500,
+      priceTier2: 399,
+      priceTier2Emails: 2500,
+      createdAt: new Date().toISOString(),
+    };
+
+    updateProgress(slug, {
+      status: 'complete',
+      message: `Campaign ready! (${elapsed}s)`,
+      progress: 100,
+      campaign,
+      debugData,
+    });
+
+    return { campaign, debugData };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
+    updateProgress(slug, {
+      status: 'error',
+      message: errorMessage,
+      progress: 0,
+      error: errorMessage,
+    });
+
+    throw error;
+  }
+}
+
+/**
+ * Build targetGeo from ICP locations for map display
+ */
+function buildTargetGeo(icp: ICPSettings): TargetGeo {
+  const locations = icp.locations || [];
+  
+  if (locations.length === 0) {
+    // Default to US if no locations specified
+    return { region: 'us', states: [] };
+  }
+
+  // US state abbreviations and their full names
+  const US_STATES: Record<string, string> = {
+    'alabama': 'AL', 'alaska': 'AK', 'arizona': 'AZ', 'arkansas': 'AR', 'california': 'CA',
+    'colorado': 'CO', 'connecticut': 'CT', 'delaware': 'DE', 'florida': 'FL', 'georgia': 'GA',
+    'hawaii': 'HI', 'idaho': 'ID', 'illinois': 'IL', 'indiana': 'IN', 'iowa': 'IA',
+    'kansas': 'KS', 'kentucky': 'KY', 'louisiana': 'LA', 'maine': 'ME', 'maryland': 'MD',
+    'massachusetts': 'MA', 'michigan': 'MI', 'minnesota': 'MN', 'mississippi': 'MS', 'missouri': 'MO',
+    'montana': 'MT', 'nebraska': 'NE', 'nevada': 'NV', 'new hampshire': 'NH', 'new jersey': 'NJ',
+    'new mexico': 'NM', 'new york': 'NY', 'north carolina': 'NC', 'north dakota': 'ND', 'ohio': 'OH',
+    'oklahoma': 'OK', 'oregon': 'OR', 'pennsylvania': 'PA', 'rhode island': 'RI', 'south carolina': 'SC',
+    'south dakota': 'SD', 'tennessee': 'TN', 'texas': 'TX', 'utah': 'UT', 'vermont': 'VT',
+    'virginia': 'VA', 'washington': 'WA', 'west virginia': 'WV', 'wisconsin': 'WI', 'wyoming': 'WY',
+    'district of columbia': 'DC',
+  };
+
+  // US-related location keywords
+  const US_KEYWORDS = ['united states', 'usa', 'us', 'america'];
+  
+  const states: string[] = [];
+  const countries: string[] = [];
+  let hasUS = false;
+  let hasInternational = false;
+
+  for (const location of locations) {
+    const locationText = typeof location === 'object' && 'text' in location 
+      ? (location as LinkedInGeoLocation).text 
+      : (typeof location === 'string' ? location : '');
+    
+    const lowerLocation = locationText.toLowerCase();
+    
+    // Check if it's a US state
+    let isState = false;
+    for (const [stateName, abbr] of Object.entries(US_STATES)) {
+      if (lowerLocation.includes(stateName) || lowerLocation === abbr.toLowerCase()) {
+        if (!states.includes(abbr)) {
+          states.push(abbr);
+        }
+        isState = true;
+        hasUS = true;
+        break;
+      }
+    }
+    
+    if (isState) continue;
+    
+    // Check if it's explicitly US
+    if (US_KEYWORDS.some(kw => lowerLocation === kw || lowerLocation.includes(kw))) {
+      hasUS = true;
+      continue;
+    }
+    
+    // Otherwise it's an international country
+    if (locationText && !US_KEYWORDS.some(kw => lowerLocation.includes(kw))) {
+      // Extract country name (remove ", United States" suffix if present)
+      const countryName = locationText.replace(/,\s*United States$/i, '').trim();
+      if (countryName && !countries.includes(countryName)) {
+        countries.push(countryName);
+        hasInternational = true;
+      }
+    }
+  }
+
+  // Determine map region based on what we found
+  if (hasInternational && !hasUS && states.length === 0) {
+    // Only international locations
+    return { region: 'world', countries };
+  }
+  
+  if (hasUS || states.length > 0) {
+    // US-based (either specific states or general US)
+    return { region: 'us', states };
+  }
+  
+  // Mix of locations - show world map with all countries (including US if present)
+  if (hasUS) {
+    countries.push('United States');
+  }
+  return { region: 'world', countries };
+}
+
+/**
+ * Generate mock leads for demo/testing when no Sales Navigator URL is provided
+ */
+function generateMockLeads(icp: ICPSettings) {
+  const titles = icp.titles.length > 0 ? icp.titles : ['CEO', 'Founder', 'VP of Sales'];
+  const firstNames = ['James', 'Sarah', 'Michael', 'Emily', 'David'];
+  const lastNames = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones'];
+  const companies = ['TechFlow', 'ScaleUp Inc', 'GrowthLabs', 'CloudBase', 'DataSync'];
+
+  // Get location text from first location
+  const firstLocation = icp.locations[0];
+  const locationText = typeof firstLocation === 'object' && 'text' in firstLocation
+    ? firstLocation.text
+    : (typeof firstLocation === 'string' ? firstLocation : 'United States');
+
+  return firstNames.map((firstName, i) => ({
+    about: `Experienced ${titles[i % titles.length]} with a passion for growth and innovation.`,
+    company: companies[i],
+    company_id: `company-${i}`,
+    first_name: firstName,
+    full_name: `${firstName} ${lastNames[i]}`,
+    job_title: titles[i % titles.length],
+    last_name: lastNames[i],
+    linkedin_url: `https://linkedin.com/in/${firstName.toLowerCase()}${lastNames[i].toLowerCase()}`,
+    location: locationText,
+    profile_id: `profile-${i}`,
+  }));
+}
+

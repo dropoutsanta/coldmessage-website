@@ -1,5 +1,4 @@
 import { supabase, isDemoMode, CampaignData } from '@/lib/supabase';
-import { notFound } from 'next/navigation';
 import CampaignPage from './CampaignPage';
 
 interface Props {
@@ -93,9 +92,14 @@ const demoData: CampaignData = {
 };
 
 async function getCampaignData(slug: string): Promise<CampaignData | null> {
-  // Demo mode - return demo data for any slug
+  // Demo mode - return demo data for known demo slugs, null otherwise
   if (isDemoMode) {
-    return { ...demoData, slug, company_name: slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) };
+    // Only return demo data for specific demo slugs
+    if (slug === 'demo' || slug === 'test') {
+      return { ...demoData, slug, company_name: slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) };
+    }
+    // For other slugs in demo mode, return null to trigger domain entry
+    return null;
   }
 
   if (!supabase) return null;
@@ -107,6 +111,7 @@ async function getCampaignData(slug: string): Promise<CampaignData | null> {
     .single();
 
   if (error || !data) {
+    // Campaign not found - return null to show domain entry form
     return null;
   }
 
@@ -117,10 +122,7 @@ export default async function Page({ params }: Props) {
   const { slug } = await params;
   const campaign = await getCampaignData(slug);
 
-  if (!campaign) {
-    notFound();
-  }
-
-  return <CampaignPage campaign={campaign} />;
+  // Pass campaign (can be null) and slug to CampaignPage
+  // CampaignPage will handle showing domain entry if campaign is null
+  return <CampaignPage campaign={campaign} slug={slug} />;
 }
-

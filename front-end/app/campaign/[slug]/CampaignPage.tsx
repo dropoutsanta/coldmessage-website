@@ -1,21 +1,80 @@
 'use client';
 
 import { CampaignData, QualifiedLead } from '@/lib/supabase';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useSearchParams } from 'next/navigation';
 import WorldMap from './WorldMap';
+import DomainEntryForm from './DomainEntryForm';
+import ICPSettingsModal from './ICPSettingsModal';
+import DebugPanel from './DebugPanel';
+import { CampaignDebugData } from '@/lib/types/debug';
 
 interface Props {
-  campaign: CampaignData;
+  campaign: CampaignData | null;
+  slug: string;
 }
 
-export default function CampaignPage({ campaign }: Props) {
+export default function CampaignPage({ campaign: initialCampaign, slug }: Props) {
+  const [campaign, setCampaign] = useState<CampaignData | null>(initialCampaign);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [debugData, setDebugData] = useState<CampaignDebugData | null>(null);
+  
+  const searchParams = useSearchParams();
+  const isDebugMode = searchParams.get('debug') === 'true';
+
+  // If no campaign data, show the domain entry form
+  if (!campaign) {
+    return (
+      <DomainEntryForm 
+        slug={slug}
+        debugMode={isDebugMode}
+        onCampaignGenerated={(newCampaign, newDebugData) => {
+          setCampaign(newCampaign);
+          if (newDebugData) {
+            setDebugData(newDebugData);
+          }
+        }} 
+      />
+    );
+  }
+
+  // Extract ICP settings from current campaign
+  const currentICPSettings = {
+    domain: campaign.website_url?.replace(/^https?:\/\//, '').replace(/^www\./, '') || '',
+    titles: campaign.icp_attributes[0]?.split(', ') || ['CEO', 'Founder'],
+    companySize: campaign.icp_attributes[1] || '10-200 employees',
+    industries: campaign.icp_attributes[2]?.split(', ') || ['SaaS', 'Tech'],
+    locations: [campaign.location || 'United States'],
+  };
+
   return (
     <div className="min-h-screen bg-[#F0F9FF] text-slate-800 font-sans selection:bg-cyan-200 selection:text-cyan-900 relative overflow-hidden">
       
       {/* Background Ambient Glows */}
       <div className="fixed top-0 left-1/4 w-[500px] h-[500px] bg-sky-200/40 rounded-full blur-[100px] pointer-events-none mix-blend-multiply" />
       <div className="fixed bottom-0 right-1/4 w-[600px] h-[600px] bg-cyan-200/40 rounded-full blur-[100px] pointer-events-none mix-blend-multiply" />
+
+      {/* Edit Settings Button - Floating */}
+      <button
+        onClick={() => setIsSettingsOpen(true)}
+        className="fixed top-4 right-4 z-50 bg-white px-4 py-2 rounded-lg shadow-lg border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-all flex items-center gap-2"
+      >
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+        Edit Settings
+      </button>
+
+      {/* ICP Settings Modal */}
+      <ICPSettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        currentSettings={currentICPSettings}
+        slug={slug}
+        onSave={(newCampaign) => setCampaign(newCampaign)}
+      />
 
       {/* Hero Section */}
       <section className="px-6 py-12 border-b border-white/50 relative z-10 backdrop-blur-sm">
@@ -119,20 +178,31 @@ export default function CampaignPage({ campaign }: Props) {
 
             {/* Right - Data Points */}
             <div className="lg:w-7/12 p-6 lg:p-8 flex flex-col justify-center">
-              <h2 className="font-semibold text-slate-900 mb-6 text-lg">Targeting Criteria</h2>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="font-semibold text-slate-900 text-lg">Targeting Criteria</h2>
+                <button
+                  onClick={() => setIsSettingsOpen(true)}
+                  className="text-xs text-sky-600 hover:text-sky-700 font-semibold flex items-center gap-1"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                  </svg>
+                  Edit
+                </button>
+              </div>
               
               <div className="grid grid-cols-2 gap-y-8 gap-x-4">
                 <div>
                   <p className="text-xs text-slate-400 uppercase tracking-wide mb-1.5 font-semibold">Titles</p>
-                  <p className="text-sm text-slate-900 font-medium leading-relaxed">Founders, CEOs, VPs of Sales</p>
+                  <p className="text-sm text-slate-900 font-medium leading-relaxed">{campaign.icp_attributes[0] || 'Founders, CEOs, VPs of Sales'}</p>
                 </div>
                 <div>
                   <p className="text-xs text-slate-400 uppercase tracking-wide mb-1.5 font-semibold">Company Size</p>
-                  <p className="text-sm text-slate-900 font-medium leading-relaxed">10-200 employees</p>
+                  <p className="text-sm text-slate-900 font-medium leading-relaxed">{campaign.icp_attributes[1] || '10-200 employees'}</p>
                 </div>
                 <div>
                   <p className="text-xs text-slate-400 uppercase tracking-wide mb-1.5 font-semibold">Industry</p>
-                  <p className="text-sm text-slate-900 font-medium leading-relaxed">SaaS, Tech, Agencies</p>
+                  <p className="text-sm text-slate-900 font-medium leading-relaxed">{campaign.icp_attributes[2] || 'SaaS, Tech, Agencies'}</p>
                 </div>
                 <div>
                   <p className="text-xs text-slate-400 uppercase tracking-wide mb-1.5 font-semibold">Primary Location</p>
@@ -218,7 +288,7 @@ export default function CampaignPage({ campaign }: Props) {
           <div className="mb-8">
             <h2 className="text-2xl font-bold text-slate-900 mb-2">Review Your Prospects</h2>
             <p className="text-slate-500">
-              We found 5 high-intent leads. Click a row to preview the personalized email.
+              We found {campaign.qualified_leads.length} high-intent leads. Click a row to preview the personalized email.
             </p>
           </div>
 
@@ -289,7 +359,7 @@ export default function CampaignPage({ campaign }: Props) {
       </section>
 
       {/* Footer */}
-      <footer className="bg-slate-950 py-12 px-6 text-center border-t border-slate-800 relative z-10">
+      <footer className={`bg-slate-950 py-12 px-6 text-center border-t border-slate-800 relative z-10 ${isDebugMode && debugData ? 'pb-[75vh]' : ''}`}>
         <div className="flex items-center justify-center gap-3 mb-6 opacity-50 grayscale hover:grayscale-0 hover:opacity-100 transition-all duration-500">
           <img src="/coldmessage_logo.png" alt="ColdMessage" className="h-24 w-auto" />
           <span className="text-white font-bold tracking-tight text-lg">ColdMessage.io</span>
@@ -298,6 +368,11 @@ export default function CampaignPage({ campaign }: Props) {
           © {new Date().getFullYear()} ColdMessage Inc. All rights reserved.
         </p>
       </footer>
+      
+      {/* Debug Panel - shows when ?debug=true and we have debug data */}
+      {isDebugMode && debugData && (
+        <DebugPanel debugData={debugData} />
+      )}
     </div>
   );
 }
@@ -306,6 +381,14 @@ export default function CampaignPage({ campaign }: Props) {
 function LeadSelector({ leads }: { leads: QualifiedLead[] }) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const selectedLead = leads[selectedIndex];
+
+  if (!selectedLead) {
+    return (
+      <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 text-center">
+        <p className="text-slate-500">No leads available yet.</p>
+      </div>
+    );
+  }
 
   // Replace merge tags with actual values
   const filledEmail = selectedLead.email_body

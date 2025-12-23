@@ -45,22 +45,77 @@ const cityCoordinates: Record<string, [number, number]> = {
   'Minneapolis': [-93.265, 44.9778],
 };
 
-// Country name variations to ISO mapping
-const countryToISO: Record<string, string> = {
-  'United States of America': 'USA',
-  'United States': 'USA',
-  'USA': 'USA',
-  'United Kingdom': 'GBR',
-  'UK': 'GBR',
-  'GBR': 'GBR',
-  'Canada': 'CAN',
-  'CAN': 'CAN',
-  'Australia': 'AUS',
-  'AUS': 'AUS',
-  'Germany': 'DEU',
-  'DEU': 'DEU',
-  'France': 'FRA',
-  'FRA': 'FRA',
+// Country name variations to Natural Earth name mapping (used in world-atlas)
+// The world-atlas uses Natural Earth country names
+const countryNameMappings: Record<string, string> = {
+  // North America
+  'United States of America': 'United States of America',
+  'United States': 'United States of America',
+  'USA': 'United States of America',
+  'US': 'United States of America',
+  'Canada': 'Canada',
+  'Mexico': 'Mexico',
+  
+  // Europe
+  'United Kingdom': 'United Kingdom',
+  'UK': 'United Kingdom',
+  'Great Britain': 'United Kingdom',
+  'Germany': 'Germany',
+  'France': 'France',
+  'Italy': 'Italy',
+  'Spain': 'Spain',
+  'Netherlands': 'Netherlands',
+  'Belgium': 'Belgium',
+  'Switzerland': 'Switzerland',
+  'Austria': 'Austria',
+  'Sweden': 'Sweden',
+  'Norway': 'Norway',
+  'Denmark': 'Denmark',
+  'Finland': 'Finland',
+  'Poland': 'Poland',
+  'Ireland': 'Ireland',
+  'Portugal': 'Portugal',
+  'Czech Republic': 'Czech Republic',
+  'Czechia': 'Czech Republic',
+  'Greece': 'Greece',
+  'Romania': 'Romania',
+  'Hungary': 'Hungary',
+  
+  // Asia Pacific
+  'Australia': 'Australia',
+  'New Zealand': 'New Zealand',
+  'Japan': 'Japan',
+  'South Korea': 'South Korea',
+  'Korea': 'South Korea',
+  'China': 'China',
+  'India': 'India',
+  'Singapore': 'Singapore',
+  'Hong Kong': 'Hong Kong',
+  'Indonesia': 'Indonesia',
+  'Thailand': 'Thailand',
+  'Vietnam': 'Vietnam',
+  'Malaysia': 'Malaysia',
+  'Philippines': 'Philippines',
+  
+  // Middle East
+  'Israel': 'Israel',
+  'United Arab Emirates': 'United Arab Emirates',
+  'UAE': 'United Arab Emirates',
+  'Saudi Arabia': 'Saudi Arabia',
+  'Qatar': 'Qatar',
+  
+  // South America
+  'Brazil': 'Brazil',
+  'Argentina': 'Argentina',
+  'Chile': 'Chile',
+  'Colombia': 'Colombia',
+  'Peru': 'Peru',
+  
+  // Africa
+  'South Africa': 'South Africa',
+  'Nigeria': 'Nigeria',
+  'Egypt': 'Egypt',
+  'Kenya': 'Kenya',
 };
 
 interface WorldMapProps {
@@ -181,12 +236,18 @@ function USMap({ states, cities }: { states: string[]; cities: string[] }) {
 
 // World Map Component
 function WorldMapView({ countries }: { countries: string[] }) {
-  const highlightedCountries = new Set(countries.map(c => c.toUpperCase()));
+  // Build a set of normalized country names for matching
+  const highlightedCountries = new Set<string>();
   
-  // Also add mapped versions
   for (const country of countries) {
-    const iso = countryToISO[country];
-    if (iso) highlightedCountries.add(iso);
+    // Add the original name (case-insensitive matching later)
+    highlightedCountries.add(country.toLowerCase());
+    
+    // Also add the mapped Natural Earth name if we have one
+    const mapped = countryNameMappings[country];
+    if (mapped) {
+      highlightedCountries.add(mapped.toLowerCase());
+    }
   }
 
   return (
@@ -218,10 +279,9 @@ function WorldMapView({ countries }: { countries: string[] }) {
         <Geographies geography={worldGeoUrl}>
           {({ geographies }) =>
             geographies.map((geo) => {
-              const countryName = geo.properties.name;
-              const countryISO = countryToISO[countryName] || geo.id;
-              const isHighlighted = highlightedCountries.has(countryISO) || 
-                                    highlightedCountries.has(countryName);
+              const countryName = geo.properties.name || '';
+              // Check if this country should be highlighted (case-insensitive)
+              const isHighlighted = highlightedCountries.has(countryName.toLowerCase());
               
               return (
                 <Geography
