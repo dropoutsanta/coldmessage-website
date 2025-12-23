@@ -10,7 +10,7 @@ interface Props {
 
 export default function DebugPanel({ debugData }: Props) {
   const [isOpen, setIsOpen] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'personas' | 'ranking' | 'filters'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'personas' | 'ranking' | 'filters' | 'prompts'>('overview');
   const [expandedPersona, setExpandedPersona] = useState<string | null>(null);
 
   const { analysis, leadSearch, emailGeneration } = debugData;
@@ -26,6 +26,7 @@ export default function DebugPanel({ debugData }: Props) {
     { id: 'personas', label: 'All Personas', icon: '👥' },
     { id: 'ranking', label: 'Rankings', icon: '📊' },
     { id: 'filters', label: 'Filters', icon: '🔍' },
+    { id: 'prompts', label: 'LLM I/O', icon: '🤖' },
   ] as const;
 
   return (

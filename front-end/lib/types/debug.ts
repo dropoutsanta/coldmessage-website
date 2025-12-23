@@ -19,6 +19,10 @@ export interface AgentStep {
   durationMs: number;
   status: 'completed' | 'failed';
   error?: string;
+  /** The full prompt sent to the LLM */
+  prompt?: string;
+  /** The raw response from the LLM */
+  response?: string;
 }
 
 /**

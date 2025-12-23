@@ -47,7 +47,7 @@ function AgentDebugDetails({ agent }: { agent: LiveAgentResult }) {
             💬 Response
           </button>
         )}
-        {agent.output && (
+        {agent.output !== undefined && agent.output !== null && (
           <button
             onClick={() => setExpandedSection(expandedSection === 'output' ? null : 'output')}
             className={`px-2 py-1 text-xs rounded font-medium transition-colors ${
@@ -145,7 +145,7 @@ export default function LiveDebugPanel({ liveDebug, isLoading }: Props) {
           const isPending = !completed && !isCurrent;
           const isComplete = !!completed;
           const isExpanded = expandedAgents.has(agent.name);
-          const hasDebugData = completed && (completed.prompt || completed.response || completed.output);
+          const hasDebugData = completed && (completed.prompt || completed.response || completed.output !== undefined);
 
           // Only show if completed, current, or next up
           const shouldShow = isComplete || isCurrent || (isPending && completedNames.size >= i - 1);

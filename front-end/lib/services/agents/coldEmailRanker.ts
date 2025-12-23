@@ -58,6 +58,7 @@ export async function rankPersonasForColdEmail(
   console.log(`[Agent3:ColdEmailRanker] Evaluating ${personas.length} personas...`);
   const startTime = Date.now();
 
+  // Pass FULL persona data - dayToDay, goals, and whyThisPersona are crucial for cold email evaluation
   const personasJson = personas.map(p => ({
     id: p.id,
     name: p.name,
@@ -67,7 +68,11 @@ export async function rankPersonasForColdEmail(
     companySize: p.companySize,
     companyStage: p.companyStage,
     painPoints: p.painPoints,
+    goals: p.goals,
+    dayToDay: p.dayToDay, // Critical for predicting inbox behavior
     buyingTriggers: p.buyingTriggers,
+    valueTheySeek: p.valueTheySeek,
+    whyThisPersona: p.whyThisPersona, // Context from brainstormer
   }));
 
   const prompt = `You are a cold email expert. Your job is to evaluate buyer personas and determine which one is MOST LIKELY TO RESPOND to a cold email.
@@ -91,9 +96,21 @@ A Head of Revenue Operations might:
 Name: ${companyProfile.name}
 Product: ${companyProfile.productOrService}
 Problem Solved: ${companyProfile.problemTheySolve}
+How They Solve It: ${companyProfile.howTheySolveIt}
 Value Prop: ${companyProfile.competitiveAdvantage}
+Target Market: ${companyProfile.targetMarket}
+Pricing Model: ${companyProfile.pricingModel}
+Sales Motion: ${companyProfile.salesMotion}
+Company Maturity: ${companyProfile.companyMaturity}
+
+⚠️ CRITICAL CONTEXT:
+- Sales Motion "${companyProfile.salesMotion}" tells you if cold email even makes sense for this company
+- Pricing Model "${companyProfile.pricingModel}" affects decision dynamics (enterprise = committees, SMB = quick decisions)
+- A self-serve PLG company probably shouldn't cold email C-suite; an enterprise company probably should
 
 ## Personas to Evaluate
+
+Pay attention to "dayToDay" (predicts inbox behavior) and "goals" (predicts motivation to respond):
 
 ${JSON.stringify(personasJson, null, 2)}
 

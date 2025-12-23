@@ -10,7 +10,7 @@ import LiveDebugPanel from './LiveDebugPanel';
 interface Props {
   slug: string;
   debugMode?: boolean;
-  onCampaignGenerated: (campaign: CampaignData, debugData?: CampaignDebugData) => void;
+  onCampaignGenerated: (campaign: CampaignData, debugData?: CampaignDebugData, liveDebug?: LiveDebugData) => void;
 }
 
 const loadingSteps = [
@@ -152,7 +152,7 @@ export default function DomainEntryForm({ slug, debugMode = false, onCampaignGen
       const data = await response.json();
       
       if (data.success && data.campaign) {
-        onCampaignGenerated(data.campaign, data.debugData);
+        onCampaignGenerated(data.campaign, data.debugData, liveDebug ?? undefined);
       } else {
         throw new Error(data.error || 'Unknown error');
       }

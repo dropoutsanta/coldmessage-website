@@ -21,6 +21,10 @@ import {
 export interface AnalyzedCompany {
   companyInfo: CompanyInfo;
   suggestedICP: ICPSettings;
+  // Rich context for downstream agents (email writer)
+  companyProfile?: CompanyProfile;
+  selectedPersona?: ICPPersona;
+  selectionReasoning?: string;
 }
 
 /**
@@ -124,6 +128,8 @@ export async function analyzeCompanyAndICP(
       completedAt: new Date(step1End).toISOString(),
       durationMs: step1End - step1Start,
       status: 'completed',
+      prompt: companyProfilerResult.debug.prompt,
+      response: companyProfilerResult.debug.response,
       input: {
         url: scrapedWebsite.url,
         title: scrapedWebsite.title,
@@ -169,6 +175,8 @@ export async function analyzeCompanyAndICP(
       completedAt: new Date(step2End).toISOString(),
       durationMs: step2End - step2Start,
       status: 'completed',
+      prompt: icpResult.debug.prompt,
+      response: icpResult.debug.response,
       input: {
         companyName: companyProfile.name,
         productOrService: companyProfile.productOrService,
@@ -221,6 +229,8 @@ export async function analyzeCompanyAndICP(
       completedAt: new Date(step3End).toISOString(),
       durationMs: step3End - step3Start,
       status: 'completed',
+      prompt: rankingResult.debug.prompt,
+      response: rankingResult.debug.response,
       input: {
         companyName: companyProfile.name,
         personaCount: icpResult.personas.length,
@@ -240,9 +250,20 @@ export async function analyzeCompanyAndICP(
   // ========================================
   console.log(`[ICPAnalyzer] Stage 4/4: Building LinkedIn filters...`);
   const step4Start = Date.now();
+  
+  // Pass company context and selection reasoning for smarter filter decisions
+  const companyContextForFilters = {
+    targetMarket: companyProfile.targetMarket,
+    industry: companyProfile.industry,
+    competitiveAdvantage: companyProfile.competitiveAdvantage,
+    salesMotion: companyProfile.salesMotion,
+  };
+  
   const filterResult = await buildLinkedInFilters(
     rankingResult.selectedPersona,
-    preferredLocations
+    preferredLocations,
+    rankingResult.selectionReasoning,
+    companyContextForFilters
   );
   const icpSettings = filterResult.filters;
   const step4End = Date.now();
@@ -286,6 +307,8 @@ export async function analyzeCompanyAndICP(
       completedAt: new Date(step4End).toISOString(),
       durationMs: step4End - step4Start,
       status: 'completed',
+      prompt: filterResult.debug.prompt,
+      response: filterResult.debug.response,
       input: {
         personaName: rankingResult.selectedPersona.name,
         titles: rankingResult.selectedPersona.titles,
@@ -355,6 +378,10 @@ export async function analyzeCompanyAndICP(
   return {
     companyInfo,
     suggestedICP: icpSettings,
+    // Rich context for email writer
+    companyProfile,
+    selectedPersona: rankingResult.selectedPersona,
+    selectionReasoning: rankingResult.selectionReasoning,
     debugTrace,
   };
 }
@@ -389,11 +416,20 @@ export async function analyzeCompanyAndICPWithDetails(
   const rankingResult = await rankPersonasForColdEmail(companyProfileDetail, icpResult.personas);
   const step3End = Date.now();
 
-  // Stage 4
+  // Stage 4 - Pass company context and selection reasoning
   const step4Start = Date.now();
+  const companyContextForFilters = {
+    targetMarket: companyProfileDetail.targetMarket,
+    industry: companyProfileDetail.industry,
+    competitiveAdvantage: companyProfileDetail.competitiveAdvantage,
+    salesMotion: companyProfileDetail.salesMotion,
+  };
+  
   const filterResult = await buildLinkedInFilters(
     rankingResult.selectedPersona,
-    preferredLocations
+    preferredLocations,
+    rankingResult.selectionReasoning,
+    companyContextForFilters
   );
   const icpSettingsDetail = filterResult.filters;
   const step4End = Date.now();
@@ -439,6 +475,8 @@ export async function analyzeCompanyAndICPWithDetails(
           completedAt: new Date(step1End).toISOString(),
           durationMs: step1End - step1Start,
           status: 'completed',
+          prompt: companyProfilerResult.debug.prompt,
+          response: companyProfilerResult.debug.response,
           input: {
             url: scrapedWebsite.url,
             title: scrapedWebsite.title,
@@ -454,6 +492,8 @@ export async function analyzeCompanyAndICPWithDetails(
           completedAt: new Date(step2End).toISOString(),
           durationMs: step2End - step2Start,
           status: 'completed',
+          prompt: icpResult.debug.prompt,
+          response: icpResult.debug.response,
           input: {
             companyName: companyProfileDetail.name,
             productOrService: companyProfileDetail.productOrService,
@@ -471,6 +511,8 @@ export async function analyzeCompanyAndICPWithDetails(
           completedAt: new Date(step3End).toISOString(),
           durationMs: step3End - step3Start,
           status: 'completed',
+          prompt: rankingResult.debug.prompt,
+          response: rankingResult.debug.response,
           input: {
             companyName: companyProfileDetail.name,
             personaCount: icpResult.personas.length,
@@ -490,6 +532,8 @@ export async function analyzeCompanyAndICPWithDetails(
           completedAt: new Date(step4End).toISOString(),
           durationMs: step4End - step4Start,
           status: 'completed',
+          prompt: filterResult.debug.prompt,
+          response: filterResult.debug.response,
           input: {
             personaName: rankingResult.selectedPersona.name,
             titles: rankingResult.selectedPersona.titles,

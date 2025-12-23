@@ -7,21 +7,113 @@ import { useSearchParams } from 'next/navigation';
 import WorldMap from './WorldMap';
 import DomainEntryForm from './DomainEntryForm';
 import ICPSettingsModal from './ICPSettingsModal';
-import DebugPanel from './DebugPanel';
+import LiveDebugPanel from './LiveDebugPanel';
 import { CampaignDebugData } from '@/lib/types/debug';
+import { LiveDebugData, LiveAgentResult } from '@/lib/services/campaignGenerator';
 
 interface Props {
   campaign: CampaignData | null;
   slug: string;
 }
 
+/**
+ * Convert CampaignDebugData (returned after generation) to LiveDebugData format
+ * so we can reuse the same LiveDebugPanel component
+ */
+function convertDebugDataToLiveDebug(debugData: CampaignDebugData): LiveDebugData {
+  const { analysis } = debugData;
+  const completedAgents: LiveAgentResult[] = [];
+
+  // Company Profiler
+  if (analysis.steps.companyProfiler) {
+    const step = analysis.steps.companyProfiler;
+    completedAgents.push({
+      name: 'Company Profiler',
+      duration: step.durationMs,
+      result: `Analyzed ${step.output?.name || 'company'}`,
+      prompt: step.prompt,
+      response: step.response,
+      output: step.output,
+    });
+  }
+
+  // ICP Brainstormer
+  if (analysis.steps.icpBrainstormer) {
+    const step = analysis.steps.icpBrainstormer;
+    completedAgents.push({
+      name: 'ICP Brainstormer',
+      duration: step.durationMs,
+      result: `Generated ${step.output?.personas?.length || 0} personas`,
+      details: step.output?.personas?.map((p: { name: string }) => p.name),
+      prompt: step.prompt,
+      response: step.response,
+      output: step.output,
+    });
+  }
+
+  // Cold Email Ranker
+  if (analysis.steps.coldEmailRanker) {
+    const step = analysis.steps.coldEmailRanker;
+    completedAgents.push({
+      name: 'Cold Email Ranker',
+      duration: step.durationMs,
+      result: `Selected: ${step.output?.selectedPersonaName || 'unknown'}`,
+      prompt: step.prompt,
+      response: step.response,
+      output: step.output,
+    });
+  }
+
+  // LinkedIn Filter Builder
+  if (analysis.steps.linkedInFilterBuilder) {
+    const step = analysis.steps.linkedInFilterBuilder;
+    completedAgents.push({
+      name: 'LinkedIn Filter Builder',
+      duration: step.durationMs,
+      result: `Built filters with ${step.output?.filters?.titles?.length || 0} titles`,
+      prompt: step.prompt,
+      response: step.response,
+      output: step.output,
+    });
+  }
+
+  return {
+    pipelineId: analysis.pipelineId,
+    domain: analysis.domain,
+    startedAt: analysis.startedAt,
+    currentAgent: '', // Completed, no current agent
+    completedAgents,
+    allPersonas: analysis.steps.icpBrainstormer?.output?.personas?.map((p: { id: string; name: string; titles: string[] }) => ({
+      id: p.id,
+      name: p.name,
+      titles: p.titles || [],
+    })),
+    selectedPersona: {
+      id: analysis.steps.coldEmailRanker?.output?.selectedPersonaId || '',
+      name: analysis.steps.coldEmailRanker?.output?.selectedPersonaName || '',
+      reason: analysis.steps.coldEmailRanker?.output?.selectionReasoning || '',
+    },
+    rankings: analysis.steps.coldEmailRanker?.output?.evaluations?.map((e: { personaId: string; personaName: string; overallScore: number }) => ({
+      personaId: e.personaId,
+      personaName: e.personaName,
+      score: e.overallScore,
+    })),
+    finalFilters: analysis.summary?.finalFilters,
+    salesNavUrl: analysis.steps.linkedInFilterBuilder?.output?.salesNavUrl,
+  };
+}
+
 export default function CampaignPage({ campaign: initialCampaign, slug }: Props) {
   const [campaign, setCampaign] = useState<CampaignData | null>(initialCampaign);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [debugData, setDebugData] = useState<CampaignDebugData | null>(null);
+  const [liveDebug, setLiveDebug] = useState<LiveDebugData | null>(null);
   
   const searchParams = useSearchParams();
   const isDebugMode = searchParams.get('debug') === 'true';
+
+  // Convert debugData to liveDebug format if we have debugData but not liveDebug
+  const effectiveLiveDebug = liveDebug || (debugData ? convertDebugDataToLiveDebug(debugData) : null);
 
   // If no campaign data, show the domain entry form
   if (!campaign) {
@@ -29,10 +121,13 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
       <DomainEntryForm 
         slug={slug}
         debugMode={isDebugMode}
-        onCampaignGenerated={(newCampaign, newDebugData) => {
+        onCampaignGenerated={(newCampaign, newDebugData, newLiveDebug) => {
           setCampaign(newCampaign);
           if (newDebugData) {
             setDebugData(newDebugData);
+          }
+          if (newLiveDebug) {
+            setLiveDebug(newLiveDebug);
           }
         }} 
       />
@@ -359,7 +454,7 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
       </section>
 
       {/* Footer */}
-      <footer className={`bg-slate-950 py-12 px-6 text-center border-t border-slate-800 relative z-10 ${isDebugMode && debugData ? 'pb-[75vh]' : ''}`}>
+      <footer className={`bg-slate-950 py-12 px-6 text-center border-t border-slate-800 relative z-10 ${isDebugMode && effectiveLiveDebug ? 'pb-[75vh]' : ''}`}>
         <div className="flex items-center justify-center gap-3 mb-6 opacity-50 grayscale hover:grayscale-0 hover:opacity-100 transition-all duration-500">
           <img src="/coldmessage_logo.png" alt="ColdMessage" className="h-24 w-auto" />
           <span className="text-white font-bold tracking-tight text-lg">ColdMessage.io</span>
@@ -369,9 +464,25 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
         </p>
       </footer>
       
-      {/* Debug Panel - shows when ?debug=true and we have debug data */}
-      {isDebugMode && debugData && (
-        <DebugPanel debugData={debugData} />
+      {/* Debug Panel - shows when ?debug=true */}
+      {isDebugMode && effectiveLiveDebug && (
+        <LiveDebugPanel liveDebug={effectiveLiveDebug} isLoading={false} />
+      )}
+      
+      {/* No debug data message - shows when ?debug=true but no debug data available */}
+      {isDebugMode && !effectiveLiveDebug && (
+        <div className="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-sm border-t border-slate-700 p-6 z-50">
+          <div className="max-w-2xl mx-auto text-center">
+            <div className="text-amber-400 text-xl mb-2">🔬</div>
+            <h3 className="text-white font-semibold mb-2">Debug Mode Active</h3>
+            <p className="text-slate-400 text-sm">
+              No debug data available for this campaign. Debug data is only captured when generating a new campaign with <code className="bg-slate-800 px-1.5 py-0.5 rounded text-amber-400">?debug=true</code> in the URL.
+            </p>
+            <p className="text-slate-500 text-xs mt-2">
+              To see the full agent pipeline, regenerate the campaign with debug mode enabled.
+            </p>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -18,6 +18,17 @@ export interface LinkedInFilterResult {
 }
 
 /**
+ * Company context subset for filter builder
+ * Only the fields relevant for making filter decisions
+ */
+export interface CompanyContext {
+  targetMarket: string;
+  industry: string;
+  competitiveAdvantage: string;
+  salesMotion?: string;
+}
+
+/**
  * Agent 4: LinkedIn Filter Builder
  * 
  * Focused task: Translate a selected ICP persona into exact LinkedIn
@@ -28,12 +39,32 @@ export interface LinkedInFilterResult {
  */
 export async function buildLinkedInFilters(
   persona: ICPPersona,
-  preferredLocations?: string[] // Optional user preference
+  preferredLocations?: string[], // Optional user preference
+  selectionReasoning?: string, // Why this persona was chosen
+  companyContext?: CompanyContext // Company context for smarter filter decisions
 ): Promise<LinkedInFilterResult> {
   console.log(`[Agent4:LinkedInFilterBuilder] Building filters for "${persona.name}"...`);
   const startTime = Date.now();
 
   const prompt = `You are a LinkedIn Sales Navigator expert. Your job is to translate an ICP persona into exact LinkedIn search filters.
+
+## Why This Persona Was Selected
+
+${selectionReasoning || 'No selection reasoning provided'}
+
+## Company Context (The company sending cold emails)
+
+${companyContext ? `
+Target Market: ${companyContext.targetMarket}
+Industry: ${companyContext.industry}
+Competitive Advantage: ${companyContext.competitiveAdvantage}
+Sales Motion: ${companyContext.salesMotion || 'Unknown'}
+
+Use this context to sanity-check your filter choices. For example:
+- If the company is in "healthcare SaaS", consider healthcare-related industries, not just generic SaaS
+- If competitive advantage mentions "enterprise-grade", lean toward larger company sizes
+- If target market is "small business owners", don't over-filter to Fortune 500
+` : 'No company context provided'}
 
 ## ICP Persona
 

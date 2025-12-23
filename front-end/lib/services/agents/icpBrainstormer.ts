@@ -77,6 +77,14 @@ Pricing Model: ${companyProfile.pricingModel}
 Company Maturity: ${companyProfile.companyMaturity}
 Sales Motion: ${companyProfile.salesMotion}
 
+## Case Studies & Testimonials (PAY CLOSE ATTENTION - these reveal who ACTUALLY buys)
+
+${companyProfile.caseStudiesOrTestimonials.length > 0 
+  ? companyProfile.caseStudiesOrTestimonials.map((cs, i) => `${i + 1}. ${cs}`).join('\n')
+  : 'None found on website'}
+
+⚠️ The case studies above are GOLD - they tell you who has ACTUALLY purchased, not just who the company thinks they sell to. Weight these heavily when generating personas.
+
 ## Your Task
 
 Generate 4-5 DISTINCT buyer personas who could benefit from this company's offering. Think broadly:
@@ -87,11 +95,22 @@ Generate 4-5 DISTINCT buyer personas who could benefit from this company's offer
 4. The downstream buyer (someone later in the value chain)
 5. The unexpected buyer (a non-obvious use case)
 
-For each persona, think about:
-- What job titles would this person have?
-- What's their day-to-day like?
-- What pain points does this product solve for them?
-- What would trigger them to look for a solution?
+## CRITICAL: Title Rules
+
+Each persona's "titles" array must contain ONLY variations of the SAME core role:
+
+✅ GOOD (tight, focused):
+- ["VP of Sales", "Head of Sales", "Director of Sales"] — all sales leaders
+- ["CEO", "Founder", "Co-Founder", "Owner"] — all company owners
+- ["Head of Growth", "VP of Growth", "Growth Lead"] — all growth leaders
+- ["RevOps Manager", "Revenue Operations Lead", "Sales Ops Manager"] — all ops roles
+
+❌ BAD (scattered, unfocused):
+- ["Account Director", "VP of Client Services", "Agency Partner"] — these are 3 different jobs
+- ["CEO", "VP of Sales", "Marketing Manager"] — mixing levels and functions
+- ["Founder", "Head of Product", "Engineering Manager"] — different departments
+
+The titles should be what you'd put in a LinkedIn search to find THE SAME TYPE OF PERSON at different companies. If the titles would return completely different people, you've gone too broad.
 
 Respond with ONLY valid JSON:
 
@@ -100,7 +119,7 @@ Respond with ONLY valid JSON:
     {
       "id": "icp_a",
       "name": "The [Descriptive Name]",
-      "titles": ["VP of Sales", "Head of Sales", "Sales Director"],
+      "titles": ["VP of Sales", "Head of Sales", "Director of Sales"],
       "seniority": "vp",
       "department": "Sales",
       "companySize": "50-200 employees",
@@ -117,7 +136,7 @@ Respond with ONLY valid JSON:
   "reasoning": "Overall reasoning about the ICP landscape for this company"
 }
 
-Be creative but realistic. Each persona should be meaningfully different.`;
+Be opinionated. Each persona should represent ONE clear role archetype with tight title variations.`;
 
   const message = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514',

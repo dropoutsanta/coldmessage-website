@@ -336,11 +336,20 @@ export async function generateCampaign(
     });
 
     const emailGenStart = Date.now();
+    
+    // Pass rich context for better email writing
+    const emailWriterContext = analysis.companyProfile && analysis.selectedPersona ? {
+      companyProfile: analysis.companyProfile,
+      selectedPersona: analysis.selectedPersona,
+      selectionReasoning: analysis.selectionReasoning,
+    } : undefined;
+    
     const qualifiedLeads = await generateEmailsForLeads(
       leads,
       analysis.companyInfo,
       'Bella',
-      5
+      5,
+      emailWriterContext
     );
     const emailGenEnd = Date.now();
     

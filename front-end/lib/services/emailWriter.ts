@@ -1,5 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { LinkedInLead, QualifiedLead, CompanyInfo } from '../types';
+import { CompanyProfile } from './agents/companyProfiler';
+import { ICPPersona } from './agents/icpBrainstormer';
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -12,35 +14,89 @@ export interface EmailContent {
 }
 
 /**
+ * Enriched context for writing better emails
+ */
+export interface EmailWriterContext {
+  companyProfile?: CompanyProfile; // Full company profile for context
+  selectedPersona?: ICPPersona; // Why we're targeting this type of person
+  selectionReasoning?: string; // Why this persona was chosen for cold email
+}
+
+/**
  * Generate personalized email for a single lead
  */
 export async function generateEmailForLead(
   lead: LinkedInLead,
   senderCompany: CompanyInfo,
-  senderName: string = 'Bella'
+  senderName: string = 'Bella',
+  context?: EmailWriterContext
 ): Promise<EmailContent> {
   console.log(`[EmailWriter] Generating email for ${lead.full_name}...`);
 
-  const prompt = `You are writing a cold email for ${senderCompany.name}.
+  // Build rich company context section
+  const companyContextSection = context?.companyProfile ? `
+## Deep Company Context (use this to write a compelling email)
 
+Company Name: ${context.companyProfile.name}
+Tagline: ${context.companyProfile.tagline}
+
+What They Sell: ${context.companyProfile.productOrService}
+Problem They Solve: ${context.companyProfile.problemTheySolve}
+How They Solve It: ${context.companyProfile.howTheySolveIt}
+
+Target Market: ${context.companyProfile.targetMarket}
+Industry: ${context.companyProfile.industry}
+Competitive Advantage: ${context.companyProfile.competitiveAdvantage}
+
+${context.companyProfile.caseStudiesOrTestimonials.length > 0 ? `
+Proof Points (use for social proof):
+${context.companyProfile.caseStudiesOrTestimonials.map((cs, i) => `- ${cs}`).join('\n')}
+` : ''}
+` : `
 About the sender's company:
 - Name: ${senderCompany.name}
 - What they do: ${senderCompany.whatTheyDo}
 - Value proposition: ${senderCompany.valueProposition}
+`;
 
-About the recipient:
+  // Build persona context section
+  const personaContextSection = context?.selectedPersona ? `
+## Why We're Targeting This Type of Person
+
+Persona: ${context.selectedPersona.name}
+Their Pain Points: ${context.selectedPersona.painPoints.join(', ')}
+Their Goals: ${context.selectedPersona.goals.join(', ')}
+What They Value: ${context.selectedPersona.valueTheySeek}
+Buying Triggers: ${context.selectedPersona.buyingTriggers.join(', ')}
+
+${context.selectionReasoning ? `Why this persona is best for cold email: ${context.selectionReasoning}` : ''}
+
+Use this persona context to write an email that resonates with their specific pain points and goals.
+` : '';
+
+  const prompt = `You are writing a cold email for ${senderCompany.name}.
+
+${companyContextSection}
+
+${personaContextSection}
+
+## About the Recipient
+
 - Name: ${lead.full_name}
 - Title: ${lead.job_title}
 - Company: ${lead.company}
 - Location: ${lead.location}
 - Their LinkedIn About: ${lead.about || 'Not available'}
 
+## Email Requirements
+
 Write a personalized cold email that:
 1. Is short (under 100 words for the body)
 2. Opens with something specific to them (their role, company, or something from their about)
-3. Quickly explains how the sender can help
+3. Connects their likely pain points to the sender's solution
 4. Has a soft CTA (asking if it makes sense to chat)
 5. Sounds human, not salesy
+6. Uses social proof if available (case studies, testimonials)
 
 Also provide:
 1. A reason why this person is a good lead (1 sentence)
@@ -87,7 +143,8 @@ export async function generateEmailsForLeads(
   leads: LinkedInLead[],
   senderCompany: CompanyInfo,
   senderName: string = 'Bella',
-  maxLeads: number = 5
+  maxLeads: number = 5,
+  context?: EmailWriterContext
 ): Promise<QualifiedLead[]> {
   const leadsToProcess = leads.slice(0, maxLeads);
   console.log(`[EmailWriter] Generating ${leadsToProcess.length} emails in parallel...`);
@@ -98,7 +155,7 @@ export async function generateEmailsForLeads(
   const results = await Promise.allSettled(
     leadsToProcess.map(async (lead, index) => {
       try {
-        const email = await generateEmailForLead(lead, senderCompany, senderName);
+        const email = await generateEmailForLead(lead, senderCompany, senderName, context);
         
         return {
           id: lead.profile_id || `lead-${index + 1}`,
