@@ -8,6 +8,43 @@ const anthropic = new Anthropic({
 });
 
 /**
+ * Normalize a company name for use in casual email copy.
+ * Strips legal suffixes like LLC, Inc., Corp., etc.
+ * 
+ * "Acme Corporation, Inc." -> "Acme Corporation"
+ * "TechStart LLC" -> "TechStart"
+ * "Global Solutions, L.L.C." -> "Global Solutions"
+ */
+function normalizeCompanyName(name: string): string {
+  if (!name) return name;
+  
+  // Common legal suffixes to remove (case insensitive)
+  // Order matters - check longer patterns first
+  const suffixes = [
+    /,?\s*(L\.?L\.?C\.?|LLC)\.?$/i,
+    /,?\s*(Inc\.?|Incorporated)$/i,
+    /,?\s*(Corp\.?|Corporation)$/i,
+    /,?\s*(Ltd\.?|Limited)$/i,
+    /,?\s*(L\.?L\.?P\.?|LLP)\.?$/i,
+    /,?\s*(P\.?L\.?L\.?C\.?|PLLC)\.?$/i,
+    /,?\s*(P\.?C\.?|PC)\.?$/i,
+    /,?\s*(Co\.?)$/i,
+    /,?\s*(S\.?A\.?)$/i,         // Spanish/French
+    /,?\s*(GmbH)$/i,             // German
+    /,?\s*(B\.?V\.?)$/i,         // Dutch
+    /,?\s*(Pty\.?\s*Ltd\.?)$/i,  // Australian
+  ];
+  
+  let normalized = name.trim();
+  
+  for (const suffix of suffixes) {
+    normalized = normalized.replace(suffix, '');
+  }
+  
+  return normalized.trim();
+}
+
+/**
  * Try to extract the primary position from a lead's data.
  * 
  * The Apify Sales Navigator scraper has a known issue where it sometimes returns
@@ -116,7 +153,7 @@ export async function generateEmailForLead(
   const companyContextSection = context?.companyProfile ? `
 ## Deep Company Context (use this to write a compelling email)
 
-Company Name: ${context.companyProfile.name}
+Company Name: ${normalizeCompanyName(context.companyProfile.name)}
 Tagline: ${context.companyProfile.tagline}
 
 What They Sell: ${context.companyProfile.productOrService}
@@ -133,7 +170,7 @@ ${context.companyProfile.caseStudiesOrTestimonials.map((cs) => `- ${cs}`).join('
 ` : ''}
 ` : `
 About the sender's company:
-- Name: ${senderCompany.name}
+- Name: ${normalizeCompanyName(senderCompany.name)}
 - What they do: ${senderCompany.whatTheyDo}
 - Value proposition: ${senderCompany.valueProposition}
 `;
@@ -153,7 +190,11 @@ ${context.selectionReasoning ? `Why this persona is best for cold email: ${conte
 Use this persona context to write an email that resonates with their specific pain points and goals.
 ` : '';
 
-  const prompt = `You are writing a cold email for ${senderCompany.name}.
+  // Normalize company names for casual email copy
+  const normalizedSenderCompany = normalizeCompanyName(senderCompany.name);
+  const normalizedLeadCompany = normalizeCompanyName(primaryPosition.company);
+
+  const prompt = `You are writing a cold email for ${normalizedSenderCompany}.
 
 ${companyContextSection}
 
@@ -163,7 +204,7 @@ ${personaContextSection}
 
 - Name: ${lead.full_name}
 - Title: ${primaryPosition.title}
-- Company: ${primaryPosition.company}
+- Company: ${normalizedLeadCompany}
 - Location: ${lead.location}
 - Their LinkedIn About: ${lead.about || 'Not available'}
 ${lead.headline && (lead.headline !== `${primaryPosition.title} at ${primaryPosition.company}`) ? `- LinkedIn Headline: ${lead.headline}` : ''}
@@ -181,18 +222,31 @@ Write a personalized cold email that:
 
 IMPORTANT: Do NOT start with compliments or flattery. Skip the "I saw your profile" or "Congrats on..." garbage. Just get to the point.
 
+## Subject Line Requirements
+
+The subject line is CRITICAL. It must be:
+- Super short: 2-4 words MAX
+- Lowercase or sentence case (NOT Title Case For Every Word)
+- Look like it came from a colleague, not a marketer
+- Intriguing but not clickbait
+
+Good examples: "quick question", "new leads", "Q4 discussion", "64% more SQLs", "re: pipeline", "idea for {{company}}"
+BAD examples: "Unlock Your Sales Potential Today!", "Quick Question About Your Business", "I'd Love To Connect"
+
 Also provide:
 1. A reason why this person is a good lead (1 sentence)
-2. A short, personalized subject line
+2. The subject line (remember: 2-4 words, lowercase)
 
 Respond ONLY with valid JSON:
 {
   "whyPicked": "Why this person is a good lead for this company",
-  "emailSubject": "Short personalized subject line",
+  "emailSubject": "quick question",
   "emailBody": "Hi {{first_name}},\\n\\nEmail body here...\\n\\nBest,\\n${senderName}"
 }
 
-Use {{first_name}} and {{company}} as placeholders in the email body.`;
+Use {{first_name}} and {{company}} as placeholders in the email body.
+
+IMPORTANT: When mentioning company names, write them casually like a human would. Never include legal suffixes like LLC, Inc., Corp., Ltd., etc.`;
 
   const message = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514',
@@ -250,7 +304,7 @@ export async function generateEmailsForLeads(
           firstName: lead.first_name,
           lastName: lead.last_name,
           title: primaryPosition.title,
-          company: primaryPosition.company,
+          company: normalizeCompanyName(primaryPosition.company),
           linkedinUrl: lead.linkedin_url,
           profilePictureUrl: lead.profile_picture || '',
           location: lead.location,
