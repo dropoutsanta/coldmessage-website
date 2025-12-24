@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, Zap, Target, UserCheck, Rocket, ShieldCheck, ChevronDown, ArrowRight, Star, Users, X, Scale, Lock, AlertTriangle, FileText, BarChart, Send, Mail } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
@@ -66,6 +67,7 @@ const faqs = [
 
 export default function LandingPage() {
   const [scrolled, setScrolled] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -77,6 +79,12 @@ export default function LandingPage() {
 
   const scrollToSection = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const goToCampaignBuilder = () => {
+    // Generate a unique slug for the new campaign
+    const slug = `campaign-${Date.now().toString(36)}`;
+    router.push(`/campaign/${slug}`);
   };
 
   return (
@@ -146,7 +154,7 @@ export default function LandingPage() {
               
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                 <button 
-                  onClick={() => scrollToSection('pricing')}
+                  onClick={goToCampaignBuilder}
                   className="px-8 py-4 bg-slate-900 text-white rounded-xl font-bold text-lg hover:bg-slate-800 transition-all shadow-xl shadow-slate-900/20 flex items-center gap-2 hover:scale-105 active:scale-95"
                 >
                   Start Campaign <ArrowRight className="w-5 h-5" />
@@ -349,7 +357,7 @@ export default function LandingPage() {
                   Join hundreds of companies filling their pipeline with ColdMessage.io.
                 </p>
                 <button 
-                  onClick={() => scrollToSection('pricing')}
+                  onClick={goToCampaignBuilder}
                   className="px-10 py-4 bg-white text-slate-900 rounded-xl font-bold text-lg hover:bg-sky-50 transition-all shadow-xl flex items-center justify-center gap-2 mx-auto"
                 >
                   Start Now <ArrowRight className="w-5 h-5" />
@@ -387,6 +395,13 @@ export default function LandingPage() {
 function PricingCard({ tier }: { tier: PricingTier }) {
   const [isRapido, setIsRapido] = useState(false);
   const currentPrice = isRapido ? tier.price + tier.rapidoPrice : tier.price;
+  const router = useRouter();
+
+  const handleSelectPlan = () => {
+    // Generate a unique slug for the new campaign
+    const slug = `campaign-${Date.now().toString(36)}`;
+    router.push(`/campaign/${slug}`);
+  };
 
   return (
     <div className={cn(
@@ -456,7 +471,9 @@ function PricingCard({ tier }: { tier: PricingTier }) {
         </div>
       </div>
 
-      <button className={cn(
+      <button 
+        onClick={handleSelectPlan}
+        className={cn(
         "w-full py-3 rounded-xl font-bold transition-all shadow-md active:scale-[0.98]",
         tier.recommended 
           ? "bg-gradient-to-r from-sky-500 to-cyan-500 text-white hover:opacity-90 shadow-sky-200" 
