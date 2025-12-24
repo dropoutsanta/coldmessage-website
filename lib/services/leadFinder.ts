@@ -86,6 +86,13 @@ export async function fetchLeadResults(
 
     if (result.data && result.data.length > 0) {
       console.log(`[LeadFinder] Found ${result.data.length} leads`);
+      
+      // DEBUG: Log the raw data structure to understand what fields are available
+      // This helps diagnose issues where secondary positions are returned instead of primary
+      if (result.data[0]) {
+        console.log(`[LeadFinder] Sample lead raw fields:`, JSON.stringify(result.data[0], null, 2));
+      }
+      
       return {
         requestId: requestId,
         status: 'complete',

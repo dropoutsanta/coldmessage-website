@@ -7,6 +7,47 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
+/**
+ * Try to extract the primary position from a lead's data.
+ * The headline often shows the main position even when we matched on a secondary role.
+ * Example headline: "Manager, Business Development at American Express"
+ */
+function extractPrimaryPosition(lead: LinkedInLead): { title: string; company: string } {
+  // If we have a headline, try to parse it - it usually shows the primary position
+  if (lead.headline) {
+    // Common patterns: "Title at Company" or "Title | Company" or "Title @ Company"
+    const patterns = [
+      /^(.+?)\s+at\s+(.+?)(?:\s*[|•]|$)/i,
+      /^(.+?)\s*@\s*(.+?)(?:\s*[|•]|$)/i,
+      /^(.+?)\s*\|\s*(.+?)(?:\s*[|•]|$)/i,
+    ];
+    
+    for (const pattern of patterns) {
+      const match = lead.headline.match(pattern);
+      if (match) {
+        return {
+          title: match[1].trim(),
+          company: match[2].trim(),
+        };
+      }
+    }
+  }
+  
+  // Use current_company/current_title if available (some scrapers provide this)
+  if (lead.current_company && lead.current_title) {
+    return {
+      title: lead.current_title,
+      company: lead.current_company,
+    };
+  }
+  
+  // Fall back to the matched position
+  return {
+    title: lead.job_title,
+    company: lead.company,
+  };
+}
+
 export interface EmailContent {
   whyPicked: string;
   emailSubject: string;
@@ -32,6 +73,9 @@ export async function generateEmailForLead(
   context?: EmailWriterContext
 ): Promise<EmailContent> {
   console.log(`[EmailWriter] Generating email for ${lead.full_name}...`);
+  
+  // Extract primary position (may differ from matched position if they have multiple roles)
+  const primaryPosition = extractPrimaryPosition(lead);
 
   // Build rich company context section
   const companyContextSection = context?.companyProfile ? `
@@ -83,10 +127,11 @@ ${personaContextSection}
 ## About the Recipient
 
 - Name: ${lead.full_name}
-- Title: ${lead.job_title}
-- Company: ${lead.company}
+- Title: ${primaryPosition.title}
+- Company: ${primaryPosition.company}
 - Location: ${lead.location}
 - Their LinkedIn About: ${lead.about || 'Not available'}
+${lead.headline && (lead.headline !== `${primaryPosition.title} at ${primaryPosition.company}`) ? `- LinkedIn Headline: ${lead.headline}` : ''}
 
 ## Email Requirements
 
@@ -157,15 +202,19 @@ export async function generateEmailsForLeads(
       try {
         const email = await generateEmailForLead(lead, senderCompany, senderName, context);
         
+        // Use the primary position (from headline parsing) instead of the matched position
+        // This helps when the lead matched on a secondary role (side gig, board position, etc.)
+        const primaryPosition = extractPrimaryPosition(lead);
+        
         return {
           id: lead.profile_id || `lead-${index + 1}`,
           name: lead.full_name,
           firstName: lead.first_name,
           lastName: lead.last_name,
-          title: lead.job_title,
-          company: lead.company,
+          title: primaryPosition.title,
+          company: primaryPosition.company,
           linkedinUrl: lead.linkedin_url,
-          profilePictureUrl: '',
+          profilePictureUrl: lead.profile_picture || '',
           location: lead.location,
           about: lead.about,
           whyPicked: email.whyPicked,

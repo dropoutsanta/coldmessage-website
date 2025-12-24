@@ -73,6 +73,10 @@ export type TargetGeo =
     };
 
 // Apify LinkedIn Scraper Types
+// NOTE: The Sales Navigator scraper returns the position that MATCHED the search query,
+// which may be a secondary position (e.g., side gig, board role) rather than the person's 
+// primary job. When someone has multiple current positions, we get whichever matched.
+// See: https://apify.com/freshdata/linkedin-sales-navigator-scraper
 export interface LinkedInLead {
   about: string;
   company: string;
@@ -84,6 +88,27 @@ export interface LinkedInLead {
   linkedin_url: string;
   location: string;
   profile_id: string;
+  
+  // Additional fields that may be returned by the scraper
+  // (capture these to help identify primary vs secondary positions)
+  profile_picture?: string;
+  headline?: string;         // LinkedIn headline - often shows primary position
+  industry?: string;
+  connections?: number;
+  
+  // Some scrapers return the full current position details
+  current_company?: string;  // May differ from 'company' if position was matched by search
+  current_title?: string;    // May differ from 'job_title'
+  
+  // Position-related fields (if the scraper returns multiple positions)
+  positions?: Array<{
+    title: string;
+    company: string;
+    company_id?: string;
+    is_current?: boolean;
+    start_date?: string;
+    end_date?: string;
+  }>;
 }
 
 export interface ApifySearchResult {
