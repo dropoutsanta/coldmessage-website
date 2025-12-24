@@ -175,7 +175,7 @@ export default function LandingPage() {
                   { src: '/logos/instantly.svg', alt: 'Instantly' },
                   { src: '/logos/heyreach.png', alt: 'HeyReach' },
                   { src: '/logos/emailbison.png', alt: 'EmailBison' },
-                  { src: '/logos/emailguard.png', alt: 'EmailGuard' },
+                  { src: '/logos/talenthaul.svg', alt: 'TalentHaul' },
                   { src: '/logos/ezshop.png', alt: 'EZShop' },
                 ].map((logo) => (
                   <img

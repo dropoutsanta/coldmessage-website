@@ -102,6 +102,20 @@ function normalizeFirstName(firstName: string, fullName?: string): string {
 }
 
 /**
+ * Validate that a string looks like a real company name, not bio text.
+ */
+function isValidCompanyName(name: string): boolean {
+  if (!name || name.length > 50) return false; // Too long = probably bio text
+  if (name.split(' ').length > 6) return false; // Too many words
+  if (/^[a-z]/.test(name)) return false; // Starts with lowercase
+  // Contains common sentence/bio words
+  if (/\b(and|the|with|for|from|through|such as|not only|who|where|that|this|their|have|has|been|being|were|was|are|is|a\s|an\s|in\s|on\s|at\s|to\s|of\s|as\s|by\s|or\s)\b/i.test(name)) return false;
+  // Looks like a sentence fragment
+  if (/\b(experience|track record|organisations|organizations|years|clients|helping|serving|leading|building|creating|developing|managing)\b/i.test(name)) return false;
+  return true;
+}
+
+/**
  * Try to extract the primary position from a lead's data.
  * 
  * The Apify Sales Navigator scraper has a known issue where it sometimes returns
@@ -110,13 +124,45 @@ function normalizeFirstName(firstName: string, fullName?: string): string {
  * 
  * Example: about says "As a Manager of Business Development for American Express..."
  *          but company shows "Great Artist Program" (a side gig)
+ * 
+ * IMPORTANT: We validate extracted companies to avoid replacing good data with garbage.
  */
 function extractPrimaryPosition(lead: LinkedInLead): { title: string; company: string } {
-  // Priority 1: Parse the "about" field - it often contains the real primary position
-  // Common patterns: "As a [Title] at/for [Company]" or "[Title] at [Company]"
+  // Priority 1: Use current_company/current_title if available (most reliable)
+  if (lead.current_company && lead.current_title) {
+    return {
+      title: lead.current_title,
+      company: lead.current_company,
+    };
+  }
+  
+  // Priority 2: Parse the headline if available (usually accurate)
+  if (lead.headline) {
+    const headlinePatterns = [
+      /^(.+?)\s+at\s+(.+?)(?:\s*[|•]|$)/i,
+      /^(.+?)\s*@\s*(.+?)(?:\s*[|•]|$)/i,
+      /^(.+?)\s*\|\s*(.+?)(?:\s*[|•]|$)/i,
+    ];
+    
+    for (const pattern of headlinePatterns) {
+      const match = lead.headline.match(pattern);
+      if (match) {
+        const extractedCompany = match[2].trim();
+        if (isValidCompanyName(extractedCompany)) {
+          return {
+            title: match[1].trim(),
+            company: extractedCompany,
+          };
+        }
+      }
+    }
+  }
+  
+  // Priority 3: Parse the "about" field - but ONLY if extracted company looks valid
+  // This is risky because about text is freeform and regex can match garbage
   if (lead.about) {
     const aboutPatterns = [
-      // "As a Manager of Business Development for American Express Global Commercial Services"
+      // "As a Manager of Business Development for American Express"
       /\bAs (?:a |an |the )?(.+?)\s+(?:for|at|with)\s+([A-Z][A-Za-z0-9\s&.,'-]+?)(?:,|\.|I\s|where|helping|serving|\n|$)/i,
       // "I am the VP of Sales at Acme Corp"
       /\bI (?:am|serve as|work as) (?:a |an |the )?(.+?)\s+(?:at|for|with)\s+([A-Z][A-Za-z0-9\s&.,'-]+?)(?:,|\.|where|helping|\n|$)/i,
@@ -130,9 +176,9 @@ function extractPrimaryPosition(lead: LinkedInLead): { title: string; company: s
         const extractedTitle = match[1].trim();
         const extractedCompany = match[2].trim();
         
-        // Only use if the extracted company is different and looks more "legitimate"
-        // (has a company_id or the original one doesn't)
-        if (extractedCompany.toLowerCase() !== lead.company.toLowerCase()) {
+        // CRITICAL: Only use if extracted company looks like a real company name
+        // AND is different from the original
+        if (extractedCompany.toLowerCase() !== lead.company.toLowerCase() && isValidCompanyName(extractedCompany)) {
           console.log(`[EmailWriter] Extracted primary position from about: "${extractedTitle} at ${extractedCompany}" (was: "${lead.job_title} at ${lead.company}")`);
           return {
             title: extractedTitle,
@@ -143,34 +189,7 @@ function extractPrimaryPosition(lead: LinkedInLead): { title: string; company: s
     }
   }
   
-  // Priority 2: Parse the headline if available
-  if (lead.headline) {
-    const headlinePatterns = [
-      /^(.+?)\s+at\s+(.+?)(?:\s*[|•]|$)/i,
-      /^(.+?)\s*@\s*(.+?)(?:\s*[|•]|$)/i,
-      /^(.+?)\s*\|\s*(.+?)(?:\s*[|•]|$)/i,
-    ];
-    
-    for (const pattern of headlinePatterns) {
-      const match = lead.headline.match(pattern);
-      if (match) {
-        return {
-          title: match[1].trim(),
-          company: match[2].trim(),
-        };
-      }
-    }
-  }
-  
-  // Priority 3: Use current_company/current_title if available
-  if (lead.current_company && lead.current_title) {
-    return {
-      title: lead.current_title,
-      company: lead.current_company,
-    };
-  }
-  
-  // Fall back to the matched position (may be a secondary role)
+  // Fall back to the matched position from the scraper (most reliable source)
   return {
     title: lead.job_title,
     company: lead.company,

@@ -257,7 +257,7 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
                   { src: '/logos/instantly.svg', alt: 'Instantly' },
                   { src: '/logos/heyreach.png', alt: 'HeyReach' },
                   { src: '/logos/emailbison.png', alt: 'EmailBison' },
-                  { src: '/logos/emailguard.png', alt: 'EmailGuard' },
+                  { src: '/logos/talenthaul.svg', alt: 'TalentHaul' },
                   { src: '/logos/ezshop.png', alt: 'EZShop' },
                 ].map((logo) => (
                   <img
@@ -348,11 +348,34 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
               <div className="mt-8 pt-6 border-t border-slate-100">
                 <p className="text-xs text-slate-400 uppercase tracking-wide mb-3 font-semibold">Sample companies</p>
                 <div className="flex flex-wrap gap-2">
-                  {['Acme Corp', 'TechFlow', 'ScaleUp Inc', 'GrowthLabs', 'CloudBase', '+ 495 more'].map((company, i) => (
-                    <span key={i} className={`px-2.5 py-1 rounded-md text-xs font-medium ${i === 5 ? 'bg-slate-100 text-slate-500' : 'bg-white text-slate-600 border border-slate-200 shadow-sm'}`}>
-                      {company}
-                    </span>
-                  ))}
+                  {(() => {
+                    // Get unique companies from qualified leads, filtering out bad data
+                    const isValidCompany = (name: string) => {
+                      if (!name || name.length > 50) return false; // Too long = probably bio text
+                      if (name.split(' ').length > 5) return false; // Too many words
+                      if (/^[a-z]/.test(name)) return false; // Starts with lowercase
+                      if (/\b(and|the|with|for|from|through|such as|not only)\b/i.test(name)) return false; // Contains sentence words
+                      return true;
+                    };
+                    const companies = [...new Set((campaign.qualifiedLeads || []).map(lead => lead.company))]
+                      .filter(isValidCompany)
+                      .slice(0, 5);
+                    const remainingCount = Math.max(0, (campaign.priceTier1Emails || 0) - companies.length);
+                    return (
+                      <>
+                        {companies.map((company, i) => (
+                          <span key={i} className="px-2.5 py-1 rounded-md text-xs font-medium bg-white text-slate-600 border border-slate-200 shadow-sm">
+                            {company}
+                          </span>
+                        ))}
+                        {remainingCount > 0 && (
+                          <span className="px-2.5 py-1 rounded-md text-xs font-medium bg-slate-100 text-slate-500">
+                            + {remainingCount} more
+                          </span>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
@@ -423,7 +446,7 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
             <div>
               <h2 className="text-2xl font-bold text-slate-900 mb-2">Review Your Prospects</h2>
               <p className="text-slate-500">
-                We found {campaign.qualifiedLeads.length} high-intent leads. Click a row to preview the personalized email.
+                We found {(campaign.qualifiedLeads || []).length} high-intent leads. Click a row to preview the personalized email.
               </p>
             </div>
             
@@ -459,7 +482,7 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
             )}
           </div>
 
-          <LeadSelector leads={campaign.qualifiedLeads.slice(0, 5)} />
+          <LeadSelector leads={(campaign.qualifiedLeads || []).slice(0, 5)} />
         </div>
       </section>
 
