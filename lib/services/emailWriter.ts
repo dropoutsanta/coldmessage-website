@@ -129,7 +129,7 @@ Competitive Advantage: ${context.companyProfile.competitiveAdvantage}
 
 ${context.companyProfile.caseStudiesOrTestimonials.length > 0 ? `
 Proof Points (use for social proof):
-${context.companyProfile.caseStudiesOrTestimonials.map((cs, i) => `- ${cs}`).join('\n')}
+${context.companyProfile.caseStudiesOrTestimonials.map((cs) => `- ${cs}`).join('\n')}
 ` : ''}
 ` : `
 About the sender's company:
@@ -172,11 +172,14 @@ ${lead.headline && (lead.headline !== `${primaryPosition.title} at ${primaryPosi
 
 Write a personalized cold email that:
 1. Is short (under 100 words for the body)
-2. Opens with something specific to them (their role, company, or something from their about)
-3. Connects their likely pain points to the sender's solution
-4. Has a soft CTA (asking if it makes sense to chat)
-5. Sounds human, not salesy
-6. Uses social proof if available (case studies, testimonials)
+2. Gets straight to the point - NO flattery, NO "I noticed you're crushing it", NO compliments about their company/role
+3. Opens with a pain point or direct question relevant to their role
+4. Connects their likely pain points to the sender's solution
+5. Has a soft CTA (asking if it makes sense to chat)
+6. Sounds human, not salesy - be direct and confident
+7. Uses social proof if available (case studies, testimonials)
+
+IMPORTANT: Do NOT start with compliments or flattery. Skip the "I saw your profile" or "Congrats on..." garbage. Just get to the point.
 
 Also provide:
 1. A reason why this person is a good lead (1 sentence)
