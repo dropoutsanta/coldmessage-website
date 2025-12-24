@@ -9,20 +9,55 @@ const anthropic = new Anthropic({
 
 /**
  * Try to extract the primary position from a lead's data.
- * The headline often shows the main position even when we matched on a secondary role.
- * Example headline: "Manager, Business Development at American Express"
+ * 
+ * The Apify Sales Navigator scraper has a known issue where it sometimes returns
+ * a secondary position (side gig, board role) instead of the primary job.
+ * However, the "about" field often contains the correct primary position.
+ * 
+ * Example: about says "As a Manager of Business Development for American Express..."
+ *          but company shows "Great Artist Program" (a side gig)
  */
 function extractPrimaryPosition(lead: LinkedInLead): { title: string; company: string } {
-  // If we have a headline, try to parse it - it usually shows the primary position
+  // Priority 1: Parse the "about" field - it often contains the real primary position
+  // Common patterns: "As a [Title] at/for [Company]" or "[Title] at [Company]"
+  if (lead.about) {
+    const aboutPatterns = [
+      // "As a Manager of Business Development for American Express Global Commercial Services"
+      /\bAs (?:a |an |the )?(.+?)\s+(?:for|at|with)\s+([A-Z][A-Za-z0-9\s&.,'-]+?)(?:,|\.|I\s|where|helping|serving|\n|$)/i,
+      // "I am the VP of Sales at Acme Corp"
+      /\bI (?:am|serve as|work as) (?:a |an |the )?(.+?)\s+(?:at|for|with)\s+([A-Z][A-Za-z0-9\s&.,'-]+?)(?:,|\.|where|helping|\n|$)/i,
+      // "Currently [Title] at [Company]"
+      /\bCurrently(?:,)?\s+(?:a |an |the )?(.+?)\s+(?:at|for|with)\s+([A-Z][A-Za-z0-9\s&.,'-]+?)(?:,|\.|where|\n|$)/i,
+    ];
+    
+    for (const pattern of aboutPatterns) {
+      const match = lead.about.match(pattern);
+      if (match) {
+        const extractedTitle = match[1].trim();
+        const extractedCompany = match[2].trim();
+        
+        // Only use if the extracted company is different and looks more "legitimate"
+        // (has a company_id or the original one doesn't)
+        if (extractedCompany.toLowerCase() !== lead.company.toLowerCase()) {
+          console.log(`[EmailWriter] Extracted primary position from about: "${extractedTitle} at ${extractedCompany}" (was: "${lead.job_title} at ${lead.company}")`);
+          return {
+            title: extractedTitle,
+            company: extractedCompany,
+          };
+        }
+      }
+    }
+  }
+  
+  // Priority 2: Parse the headline if available
   if (lead.headline) {
-    // Common patterns: "Title at Company" or "Title | Company" or "Title @ Company"
-    const patterns = [
+    const headlinePatterns = [
       /^(.+?)\s+at\s+(.+?)(?:\s*[|•]|$)/i,
       /^(.+?)\s*@\s*(.+?)(?:\s*[|•]|$)/i,
       /^(.+?)\s*\|\s*(.+?)(?:\s*[|•]|$)/i,
     ];
     
-    for (const pattern of patterns) {
+    for (const pattern of headlinePatterns) {
       const match = lead.headline.match(pattern);
       if (match) {
         return {
@@ -33,7 +68,7 @@ function extractPrimaryPosition(lead: LinkedInLead): { title: string; company: s
     }
   }
   
-  // Use current_company/current_title if available (some scrapers provide this)
+  // Priority 3: Use current_company/current_title if available
   if (lead.current_company && lead.current_title) {
     return {
       title: lead.current_title,
@@ -41,7 +76,7 @@ function extractPrimaryPosition(lead: LinkedInLead): { title: string; company: s
     };
   }
   
-  // Fall back to the matched position
+  // Fall back to the matched position (may be a secondary role)
   return {
     title: lead.job_title,
     company: lead.company,
