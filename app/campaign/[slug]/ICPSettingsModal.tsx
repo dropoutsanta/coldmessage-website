@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CampaignData } from '@/lib/supabase';
+import { CampaignData } from '@/lib/types';
 
 interface ICPSettings {
   domain: string;

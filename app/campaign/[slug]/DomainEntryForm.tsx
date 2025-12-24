@@ -3,9 +3,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CampaignData } from '@/lib/supabase';
+import { CampaignData } from '@/lib/types';
 import { CampaignDebugData } from '@/lib/types/debug';
 import { LiveDebugData } from '@/lib/services/campaignGenerator';
+import { domainToSlug } from '@/lib/utils/slugify';
 import LiveDebugPanel from './LiveDebugPanel';
 
 interface Props {
@@ -37,12 +38,13 @@ export default function DomainEntryForm({ slug, debugMode = false, onCampaignGen
   const [liveDebug, setLiveDebug] = useState<LiveDebugData | null>(null);
   const [serverStatus, setServerStatus] = useState<string>('');
   const [serverProgress, setServerProgress] = useState<number>(0);
+  const [campaignSlug, setCampaignSlug] = useState<string>('');
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const hasAutoSubmitted = useRef(false);
 
   // Poll for progress updates during loading
   useEffect(() => {
-    if (!isLoading) {
+    if (!isLoading || !campaignSlug) {
       if (pollingRef.current) {
         clearInterval(pollingRef.current);
         pollingRef.current = null;
@@ -52,7 +54,7 @@ export default function DomainEntryForm({ slug, debugMode = false, onCampaignGen
 
     const pollProgress = async () => {
       try {
-        const response = await fetch(`/api/generate-campaign?slug=${slug}`);
+        const response = await fetch(`/api/generate-campaign?slug=${campaignSlug}`);
         if (response.ok) {
           const data = await response.json();
           if (data.success) {
@@ -79,7 +81,7 @@ export default function DomainEntryForm({ slug, debugMode = false, onCampaignGen
         pollingRef.current = null;
       }
     };
-  }, [isLoading, slug]);
+  }, [isLoading, campaignSlug]);
 
   // Animated progress based on server updates
   useEffect(() => {
@@ -133,6 +135,10 @@ export default function DomainEntryForm({ slug, debugMode = false, onCampaignGen
     setIsLoading(true);
     setCurrentStep(0);
     setProgress(0);
+    
+    // Set the campaign slug for polling (derived the same way the API does)
+    const generatedSlug = domainToSlug(cleanDomain);
+    setCampaignSlug(generatedSlug);
 
     try {
       // Simulate the 2-3 minute processing time

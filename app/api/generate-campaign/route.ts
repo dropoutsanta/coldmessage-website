@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
 import { generateCampaign, getCampaignProgress } from '@/lib/services/campaignGenerator';
 import { ICPSettings } from '@/lib/types';
 import { domainToSlug } from '@/lib/utils/slugify';
@@ -74,15 +74,15 @@ export async function POST(request: NextRequest) {
       };
 
       // Upsert to Supabase (insert or update based on slug)
-      if (supabase) {
-        const { data: existing } = await supabase
+      if (supabaseAdmin) {
+        const { data: existing } = await supabaseAdmin
           .from('campaigns')
           .select('id')
           .eq('slug', slug)
           .single();
 
         if (existing) {
-          const { data, error } = await supabase
+          const { data, error } = await supabaseAdmin
             .from('campaigns')
             .update(campaign)
             .eq('slug', slug)
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
           }
           return NextResponse.json({ success: true, campaign: data, slug, debugData });
         } else {
-          const { data, error } = await supabase
+          const { data, error } = await supabaseAdmin
             .from('campaigns')
             .insert(campaign)
             .select()
@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
         updated_at: new Date().toISOString(),
       };
 
-      if (!supabase) {
+      if (!supabaseAdmin) {
         return NextResponse.json({
           success: true,
           campaign: {
@@ -173,14 +173,14 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      const { data: existing } = await supabase
+      const { data: existing } = await supabaseAdmin
         .from('campaigns')
         .select('id')
         .eq('slug', slug)
         .single();
 
       if (existing) {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseAdmin
           .from('campaigns')
           .update(campaignData)
           .eq('slug', slug)
@@ -192,7 +192,7 @@ export async function POST(request: NextRequest) {
         }
         return NextResponse.json({ success: true, campaign: data, slug });
       } else {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseAdmin
           .from('campaigns')
           .insert(campaignData)
           .select()

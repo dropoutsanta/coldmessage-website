@@ -473,7 +473,7 @@ export async function generateCampaign(
     }
 
     const campaign: CampaignData = {
-      id: `campaign-${Date.now()}`,
+      id: crypto.randomUUID(),
       slug,
       companyName: analysis.companyInfo.name || extractCompanyName(domain),
       websiteUrl: domain.startsWith('http') ? domain : `https://${domain}`,

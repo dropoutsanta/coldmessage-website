@@ -1,6 +1,6 @@
 'use client';
 
-import { CampaignData, QualifiedLead } from '@/lib/supabase';
+import { CampaignData, QualifiedLead } from '@/lib/types';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -167,10 +167,10 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
 
   // Extract ICP settings from current campaign
   const currentICPSettings = {
-    domain: campaign.website_url?.replace(/^https?:\/\//, '').replace(/^www\./, '') || '',
-    titles: campaign.icp_attributes[0]?.split(', ') || ['CEO', 'Founder'],
-    companySize: campaign.icp_attributes[1] || '10-200 employees',
-    industries: campaign.icp_attributes[2]?.split(', ') || ['SaaS', 'Tech'],
+    domain: campaign.websiteUrl?.replace(/^https?:\/\//, '').replace(/^www\./, '') || '',
+    titles: campaign.icpAttributes?.[0]?.split(', ') || ['CEO', 'Founder'],
+    companySize: campaign.icpAttributes?.[1] || '10-200 employees',
+    industries: campaign.icpAttributes?.[2]?.split(', ') || ['SaaS', 'Tech'],
     locations: [campaign.location || 'United States'],
   };
 
@@ -224,7 +224,7 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
             </div>
             
             <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight leading-tight">
-              {campaign.company_name}
+              {campaign.companyName}
             </h1>
             <p className="text-xl text-slate-600 font-medium">
               Your cold email campaign is ready to launch.
@@ -232,14 +232,14 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
             
             {/* Last Updated & Sales Nav Link */}
             <div className="flex flex-col gap-2 text-sm">
-              {campaign.updated_at && (
+              {campaign.updatedAt && (
                 <p className="text-slate-500">
-                  Last generated: <span className="font-semibold text-slate-700">{formatDate(campaign.updated_at)}</span>
+                  Last generated: <span className="font-semibold text-slate-700">{formatDate(campaign.updatedAt)}</span>
                 </p>
               )}
-              {campaign.sales_navigator_url && (
+              {campaign.salesNavigatorUrl && (
                 <a
-                  href={campaign.sales_navigator_url}
+                  href={campaign.salesNavigatorUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-sky-600 hover:text-sky-700 font-medium flex items-center gap-1 w-fit"
@@ -332,7 +332,7 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
                 <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Target Region</p>
               </div>
               <div className="absolute inset-0 p-4">
-                <WorldMap targetGeo={campaign.target_geo} />
+                <WorldMap targetGeo={campaign.targetGeo} />
               </div>
             </div>
 
@@ -354,15 +354,15 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
               <div className="grid grid-cols-2 gap-y-8 gap-x-4">
                 <div>
                   <p className="text-xs text-slate-400 uppercase tracking-wide mb-1.5 font-semibold">Titles</p>
-                  <p className="text-sm text-slate-900 font-medium leading-relaxed">{campaign.icp_attributes[0] || 'Founders, CEOs, VPs of Sales'}</p>
+                  <p className="text-sm text-slate-900 font-medium leading-relaxed">{campaign.icpAttributes[0] || 'Founders, CEOs, VPs of Sales'}</p>
                 </div>
                 <div>
                   <p className="text-xs text-slate-400 uppercase tracking-wide mb-1.5 font-semibold">Company Size</p>
-                  <p className="text-sm text-slate-900 font-medium leading-relaxed">{campaign.icp_attributes[1] || '10-200 employees'}</p>
+                  <p className="text-sm text-slate-900 font-medium leading-relaxed">{campaign.icpAttributes[1] || '10-200 employees'}</p>
                 </div>
                 <div>
                   <p className="text-xs text-slate-400 uppercase tracking-wide mb-1.5 font-semibold">Industry</p>
-                  <p className="text-sm text-slate-900 font-medium leading-relaxed">{campaign.icp_attributes[2] || 'SaaS, Tech, Agencies'}</p>
+                  <p className="text-sm text-slate-900 font-medium leading-relaxed">{campaign.icpAttributes[2] || 'SaaS, Tech, Agencies'}</p>
                 </div>
                 <div>
                   <p className="text-xs text-slate-400 uppercase tracking-wide mb-1.5 font-semibold">Primary Location</p>
@@ -392,7 +392,7 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
             <div className="p-6">
               <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
                 <div>
-                  <p className="text-2xl font-bold text-slate-900">{campaign.price_tier_1_emails}</p>
+                  <p className="text-2xl font-bold text-slate-900">{campaign.priceTier1Emails}</p>
                   <p className="text-xs text-slate-500">emails sent</p>
                 </div>
                 <div>
@@ -448,11 +448,11 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
           <div className="mb-8">
             <h2 className="text-2xl font-bold text-slate-900 mb-2">Review Your Prospects</h2>
             <p className="text-slate-500">
-              We found {campaign.qualified_leads.length} high-intent leads. Click a row to preview the personalized email.
+              We found {campaign.qualifiedLeads.length} high-intent leads. Click a row to preview the personalized email.
             </p>
           </div>
 
-          <LeadSelector leads={campaign.qualified_leads.slice(0, 5)} />
+          <LeadSelector leads={campaign.qualifiedLeads.slice(0, 5)} />
         </div>
       </section>
 
@@ -495,12 +495,12 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
                
               <div className="relative z-10">
                 <div className="flex items-baseline gap-1 mb-2">
-                  <span className="text-5xl font-black text-slate-900 tracking-tight">${campaign.price_tier_1}</span>
+                  <span className="text-5xl font-black text-slate-900 tracking-tight">${campaign.priceTier1}</span>
                   <span className="text-slate-500 font-medium">/ campaign</span>
                 </div>
                 
                 <p className="text-slate-500 mb-8 font-medium">
-                  Reach <strong>{campaign.price_tier_1_emails} verified prospects</strong> with personalized messages.
+                  Reach <strong>{campaign.priceTier1Emails} verified prospects</strong> with personalized messages.
                 </p>
                 
                 <button className="w-full bg-slate-900 text-white text-lg font-bold py-4 rounded-xl shadow-lg hover:shadow-xl hover:bg-slate-800 transform transition-all active:scale-[0.98] flex items-center justify-center gap-2">
@@ -567,11 +567,11 @@ function LeadSelector({ leads }: { leads: QualifiedLead[] }) {
   }
 
   // Replace merge tags with actual values
-  const filledEmail = selectedLead.email_body
+  const filledEmail = selectedLead.emailBody
     .replace(/\{\{first_name\}\}/g, selectedLead.name.split(' ')[0])
     .replace(/\{\{company\}\}/g, selectedLead.company);
 
-  const filledSubject = selectedLead.email_subject
+  const filledSubject = selectedLead.emailSubject
     .replace(/\{\{first_name\}\}/g, selectedLead.name.split(' ')[0])
     .replace(/\{\{company\}\}/g, selectedLead.company);
 
@@ -597,9 +597,9 @@ function LeadSelector({ leads }: { leads: QualifiedLead[] }) {
               <div className="flex items-start gap-3">
                 {/* Avatar */}
                 <div className="shrink-0 pt-1">
-                   {lead.profile_picture_url ? (
+                   {lead.profilePictureUrl ? (
                       <img
-                        src={lead.profile_picture_url}
+                        src={lead.profilePictureUrl}
                         alt={lead.name}
                         className="w-10 h-10 rounded-full object-cover shadow-sm"
                       />
@@ -621,7 +621,7 @@ function LeadSelector({ leads }: { leads: QualifiedLead[] }) {
                         {lead.name}
                       </h4>
                       <a
-                        href={lead.linkedin_url}
+                        href={lead.linkedinUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
@@ -642,7 +642,7 @@ function LeadSelector({ leads }: { leads: QualifiedLead[] }) {
                   </div>
                   <p className="text-xs text-slate-500 mb-1">{lead.title} @ {lead.company}</p>
                   <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
-                    {lead.why_picked}
+                    {lead.whyPicked}
                   </p>
                 </div>
               </div>
@@ -718,7 +718,7 @@ function LeadSelector({ leads }: { leads: QualifiedLead[] }) {
         <div className="bg-white border-t border-slate-200 px-6 py-3 flex justify-between items-center text-xs">
           <span className="text-slate-400">Preview Mode</span>
           <a
-             href={selectedLead.linkedin_url}
+             href={selectedLead.linkedinUrl}
              target="_blank"
              rel="noopener noreferrer"
              className="flex items-center gap-1 text-blue-600 hover:text-blue-700 font-medium transition-colors"
