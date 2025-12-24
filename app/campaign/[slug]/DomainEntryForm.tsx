@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CampaignData } from '@/lib/supabase';
 import { CampaignDebugData } from '@/lib/types/debug';
@@ -24,7 +25,10 @@ const loadingSteps = [
 ];
 
 export default function DomainEntryForm({ slug, debugMode = false, onCampaignGenerated }: Props) {
-  const [domain, setDomain] = useState('');
+  const searchParams = useSearchParams();
+  const initialDomain = searchParams.get('domain') || '';
+  
+  const [domain, setDomain] = useState(initialDomain);
   const [isLoading, setIsLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [error, setError] = useState('');
@@ -33,6 +37,7 @@ export default function DomainEntryForm({ slug, debugMode = false, onCampaignGen
   const [serverStatus, setServerStatus] = useState<string>('');
   const [serverProgress, setServerProgress] = useState<number>(0);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  const hasAutoSubmitted = useRef(false);
 
   // Poll for progress updates during loading
   useEffect(() => {
@@ -161,6 +166,17 @@ export default function DomainEntryForm({ slug, debugMode = false, onCampaignGen
       setIsLoading(false);
     }
   };
+
+  // Auto-submit when domain is provided via query params
+  useEffect(() => {
+    if (initialDomain && !hasAutoSubmitted.current && !isLoading) {
+      hasAutoSubmitted.current = true;
+      // Trigger submit programmatically
+      const fakeEvent = { preventDefault: () => {} } as React.FormEvent;
+      handleSubmit(fakeEvent);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialDomain]);
 
   if (isLoading) {
     return (
