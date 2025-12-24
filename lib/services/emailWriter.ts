@@ -33,6 +33,15 @@ function normalizeCompanyName(name: string): string {
     /,?\s*(GmbH)$/i,             // German
     /,?\s*(B\.?V\.?)$/i,         // Dutch
     /,?\s*(Pty\.?\s*Ltd\.?)$/i,  // Australian
+    /,?\s*(sp\.?\s*z\.?\s*o\.?\s*o\.?)$/i,  // Polish (sp. z o.o.)
+    /,?\s*(s\.?\s*r\.?\s*o\.?)$/i,          // Czech/Slovak (s.r.o.)
+    /,?\s*(A\.?S\.?|a\/s)$/i,               // Danish/Norwegian (A/S)
+    /,?\s*(AB)$/i,                          // Swedish
+    /,?\s*(AG)$/i,                          // German/Swiss
+    /,?\s*(S\.?r\.?l\.?)$/i,                // Italian/Romanian (S.r.l.)
+    /,?\s*(S\.?L\.?)$/i,                    // Spanish (S.L.)
+    /,?\s*(N\.?V\.?)$/i,                    // Dutch (N.V.)
+    /,?\s*(OÜ)$/i,                          // Estonian
   ];
   
   let normalized = name.trim();
@@ -262,21 +271,50 @@ ${lead.headline && (lead.headline !== `${primaryPosition.title} at ${primaryPosi
 Write a personalized cold email that:
 1. Is short (under 100 words for the body)
 2. Gets straight to the point - NO flattery, NO "I noticed you're crushing it", NO compliments about their company/role
-3. Opens with a pain point or direct question relevant to their role
-4. Connects their likely pain points to the sender's solution
-5. Has a soft CTA (asking if it makes sense to chat)
+3. Open with a 5-word MAX hook AS A QUESTION. NO fluffy adjectives (unforgettable, incredible, amazing, seamless, revolutionary). Examples:
+   - "Team retreat in Montenegro?"
+   - "Cut your sales cycle in half?"
+   - "New leads on autopilot?"
+4. Then describe the offer/experience — what they GET, not what they're missing
+5. End with a CTA that name-drops similar companies: "Want to see what we did for [Company] from [Country]?" NOT generic "Want to chat?"
 6. Sounds human, not salesy - be direct and confident
 7. Uses social proof if available (case studies, testimonials)
 
-IMPORTANT: Do NOT start with compliments or flattery. Skip the "I saw your profile" or "Congrats on..." garbage. Just get to the point.
+BANNED PATTERNS - Never use these:
+- "Most [X] struggle with..." 
+- "Saw [company] is..." or "I noticed..."
+- "Companies like yours..."
+- "Are you facing challenges with..."
+- Any opener that talks about their problems before the offer
 
 ## Writing Style
 
-Write punchy, direct copy. Avoid filler words and weak language:
-- NO: "just", "really", "very", "actually", "basically", "honestly", "definitely"
-- NO: "I just wanted to...", "I was wondering if...", "I think that...", "I believe that..."
-- NO: "kind of", "sort of", "a little bit", "perhaps", "maybe"
-- Write with confidence. State things directly, don't hedge.
+STRUCTURE: 2-3 short paragraphs, not a wall of text but also not every sentence on its own line. Group related thoughts together naturally. Think casual email, not poetry.
+
+BAD (too corporate, wall of text):
+"Our platform helps businesses streamline their operations and improve productivity through our comprehensive suite of tools designed to meet your specific needs."
+
+BAD (too choppy, every line isolated):
+"Cut your sales cycle by 40%?
+
+3 demos closed in under 2 hours last week.
+
+Your reps spend less time chasing & more time closing."
+
+GOOD (natural grouping, flows like a real email):
+"[Question hook - 5 words max]?
+
+[What they get - 2-3 sentences grouped naturally, specific details].
+
+[Social proof with real numbers]. Want to see what we did for [similar company]?"
+
+VOICE:
+- Use "&" instead of "and" 
+- Casual, like texting a friend
+- Specific details, not corporate vague ("40%" not "significant improvement", "last week" not "recently")
+- Name-drop real numbers, real timeframes, real results
+
+BANNED WORDS: "just", "really", "very", "actually", "basically", "honestly", "definitely", "unique", "tailored", "leverage", "solutions", "comprehensive", "streamline"
 
 ## Subject Line Requirements
 
@@ -297,7 +335,7 @@ Respond ONLY with valid JSON:
 {
   "whyPicked": "Why this person is a good lead for this company",
   "emailSubject": "quick question",
-  "emailBody": "Hi {{first_name}},\\n\\nEmail body here...\\n\\nBest,\\n${senderName}"
+  "emailBody": "Hi {{first_name}},\\n\\n[5-word hook - the offer, not their pain].\\n\\n[What they get - specifics, details, the experience].\\n\\n[Social proof or credibility - brief].\\n\\n[CTA asking for a response - Want me to send X?].\\n\\nBest,\\n${senderName}"
 }
 
 Use {{first_name}} and {{company}} as placeholders in the email body.

@@ -7,6 +7,18 @@ const anthropic = new Anthropic({
 });
 
 /**
+ * Clean up common LLM JSON output issues before parsing
+ */
+function cleanJsonString(str: string): string {
+  return str
+    .replace(/,(\s*[}\]])/g, '$1')
+    .replace(/[\x00-\x1F\x7F]/g, (match) => {
+      if (match === '\n' || match === '\r' || match === '\t') return match;
+      return '';
+    });
+}
+
+/**
  * Output from Agent 4
  */
 export interface LinkedInFilterResult {
@@ -204,7 +216,15 @@ Use the EXACT IDs from the reference above. If an industry or location isn't lis
     throw new Error('[Agent4:LinkedInFilterBuilder] Failed to parse response as JSON');
   }
 
-  const parsed = JSON.parse(jsonMatch[0]);
+  let parsed;
+  try {
+    const cleanedJson = cleanJsonString(jsonMatch[0]);
+    parsed = JSON.parse(cleanedJson);
+  } catch (parseError) {
+    console.error('[Agent4:LinkedInFilterBuilder] JSON parse error:', parseError);
+    console.error('[Agent4:LinkedInFilterBuilder] Raw response (first 500 chars):', jsonMatch[0].substring(0, 500));
+    throw new Error(`[Agent4:LinkedInFilterBuilder] Failed to parse JSON: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`);
+  }
   
   // Validate and structure the response
   const filters: ICPSettings = {

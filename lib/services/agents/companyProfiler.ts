@@ -6,6 +6,18 @@ const anthropic = new Anthropic({
 });
 
 /**
+ * Clean up common LLM JSON output issues before parsing
+ */
+function cleanJsonString(str: string): string {
+  return str
+    .replace(/,(\s*[}\]])/g, '$1')
+    .replace(/[\x00-\x1F\x7F]/g, (match) => {
+      if (match === '\n' || match === '\r' || match === '\t') return match;
+      return '';
+    });
+}
+
+/**
  * Geographic focus analysis
  */
 export interface GeographicFocus {
@@ -155,7 +167,15 @@ Be factual. If something isn't clear from the website, say "unknown" or leave th
     throw new Error('[Agent1:CompanyProfiler] Failed to parse response as JSON');
   }
 
-  const profile: CompanyProfile = JSON.parse(jsonMatch[0]);
+  let profile: CompanyProfile;
+  try {
+    const cleanedJson = cleanJsonString(jsonMatch[0]);
+    profile = JSON.parse(cleanedJson);
+  } catch (parseError) {
+    console.error('[Agent1:CompanyProfiler] JSON parse error:', parseError);
+    console.error('[Agent1:CompanyProfiler] Raw response (first 500 chars):', jsonMatch[0].substring(0, 500));
+    throw new Error(`[Agent1:CompanyProfiler] Failed to parse JSON: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`);
+  }
   
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
   console.log(`[Agent1:CompanyProfiler] Complete in ${elapsed}s - ${profile.name}`);

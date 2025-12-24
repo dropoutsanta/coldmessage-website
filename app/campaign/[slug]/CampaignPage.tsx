@@ -328,15 +328,15 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
               <div className="grid grid-cols-2 gap-y-8 gap-x-4">
                 <div>
                   <p className="text-xs text-slate-400 uppercase tracking-wide mb-1.5 font-semibold">Titles</p>
-                  <p className="text-sm text-slate-900 font-medium leading-relaxed">{campaign.icpAttributes[0] || 'Founders, CEOs, VPs of Sales'}</p>
+                  <p className="text-sm text-slate-900 font-medium leading-relaxed">{campaign.icpAttributes?.[0] || 'Founders, CEOs, VPs of Sales'}</p>
                 </div>
                 <div>
                   <p className="text-xs text-slate-400 uppercase tracking-wide mb-1.5 font-semibold">Company Size</p>
-                  <p className="text-sm text-slate-900 font-medium leading-relaxed">{campaign.icpAttributes[1] || '10-200 employees'}</p>
+                  <p className="text-sm text-slate-900 font-medium leading-relaxed">{campaign.icpAttributes?.[1] || '10-200 employees'}</p>
                 </div>
                 <div>
                   <p className="text-xs text-slate-400 uppercase tracking-wide mb-1.5 font-semibold">Industry</p>
-                  <p className="text-sm text-slate-900 font-medium leading-relaxed">{campaign.icpAttributes[2] || 'SaaS, Tech, Agencies'}</p>
+                  <p className="text-sm text-slate-900 font-medium leading-relaxed">{campaign.icpAttributes?.[2] || 'SaaS, Tech, Agencies'}</p>
                 </div>
                 <div>
                   <p className="text-xs text-slate-400 uppercase tracking-wide mb-1.5 font-semibold">Primary Location</p>
