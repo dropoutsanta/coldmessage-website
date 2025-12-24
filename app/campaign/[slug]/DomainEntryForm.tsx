@@ -166,9 +166,11 @@ export default function DomainEntryForm({ slug, debugMode = false, onCampaignGen
       
       if (data.success && data.campaign && data.slug) {
         // Redirect to the domain-based slug
+        // The redirect will cause a fresh page load that fetches from Supabase
+        // with proper snake_case -> camelCase transformation.
+        // Do NOT call onCampaignGenerated here with raw API data (snake_case format)
+        // as it would cause CampaignPage to render with malformed data before redirect completes.
         router.replace(`/campaign/${data.slug}`);
-        // Also call the callback in case parent component needs it
-        onCampaignGenerated(data.campaign, data.debugData, liveDebug ?? undefined);
       } else {
         throw new Error(data.error || 'Unknown error');
       }

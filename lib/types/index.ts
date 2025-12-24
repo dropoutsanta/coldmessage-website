@@ -103,6 +103,7 @@ export interface CampaignData {
   personaRankings?: PersonaRankings | null;
   linkedinFilters?: LinkedInFilters | null;
   pipelineDebug?: PipelineDebug | null;
+  loom_video_url?: string | null;
 }
 
 export type TargetGeo = 

@@ -353,6 +353,10 @@ export async function generateCampaign(
     );
     const emailGenEnd = Date.now();
     
+    // #region agent log
+    fetch('http://127.0.0.1:7244/ingest/963b891c-d04d-4a93-bbc6-c60d82dcc595',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'campaignGenerator.ts:355',message:'generateEmailsForLeads result',data:{hasQualifiedLeads:!!qualifiedLeads,qualifiedLeadsType:typeof qualifiedLeads,qualifiedLeadsLength:qualifiedLeads?.length,firstLeadSample:qualifiedLeads?.[0]?{hasEmailBody:!!qualifiedLeads[0].emailBody,hasEmailSubject:!!qualifiedLeads[0].emailSubject,hasName:!!qualifiedLeads[0].name}:null},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
+    // #endregion
+    
     // Capture email generation debug data
     if (captureDebug && debugData) {
       debugData.emailGeneration = {

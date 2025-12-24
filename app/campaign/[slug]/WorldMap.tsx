@@ -123,6 +123,11 @@ interface WorldMapProps {
 }
 
 export default function WorldMap({ targetGeo }: WorldMapProps) {
+  // Defensive check in case targetGeo is undefined during data loading transitions
+  if (!targetGeo) {
+    return <WorldMapView countries={[]} />;
+  }
+  
   if (targetGeo.region === 'us') {
     return <USMap states={targetGeo.states || []} cities={targetGeo.cities || []} />;
   }

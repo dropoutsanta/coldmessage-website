@@ -75,7 +75,7 @@ export function transformSupabaseCampaign(row: SupabaseCampaignRow): CampaignDat
     helpsWith: row.helps_with,
     greatAt: row.great_at,
     icpAttributes: row.icp_attributes,
-    qualifiedLeads: row.qualified_leads.map(lead => ({
+    qualifiedLeads: (row.qualified_leads || []).map(lead => ({
       id: lead.id,
       name: lead.name,
       firstName: lead.name.split(' ')[0] || '',

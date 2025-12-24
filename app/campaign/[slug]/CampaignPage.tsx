@@ -596,14 +596,14 @@ function LeadSelector({ leads }: { leads: QualifiedLead[] }) {
     );
   }
 
-  // Replace merge tags with actual values
-  const filledEmail = selectedLead.emailBody
-    .replace(/\{\{first_name\}\}/g, selectedLead.name.split(' ')[0])
-    .replace(/\{\{company\}\}/g, selectedLead.company);
+  // Replace merge tags with actual values - guard against undefined
+  const filledEmail = (selectedLead.emailBody || '')
+    .replace(/\{\{first_name\}\}/g, selectedLead.name?.split(' ')[0] || '')
+    .replace(/\{\{company\}\}/g, selectedLead.company || '');
 
-  const filledSubject = selectedLead.emailSubject
-    .replace(/\{\{first_name\}\}/g, selectedLead.name.split(' ')[0])
-    .replace(/\{\{company\}\}/g, selectedLead.company);
+  const filledSubject = (selectedLead.emailSubject || '')
+    .replace(/\{\{first_name\}\}/g, selectedLead.name?.split(' ')[0] || '')
+    .replace(/\{\{company\}\}/g, selectedLead.company || '');
 
   return (
     <div className="bg-white rounded-2xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.1)] border border-slate-200 overflow-hidden flex flex-col lg:flex-row lg:h-[600px]">

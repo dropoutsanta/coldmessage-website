@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
         helps_with: campaignData.helpsWith,
         great_at: campaignData.greatAt,
         icp_attributes: campaignData.icpAttributes,
-        qualified_leads: campaignData.qualifiedLeads.map((lead) => ({
+        qualified_leads: (campaignData.qualifiedLeads || []).map((lead) => ({
           id: lead.id,
           name: lead.name,
           title: lead.title,
