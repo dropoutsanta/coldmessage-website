@@ -18,6 +18,16 @@ export interface LinkedInFilterResult {
 }
 
 /**
+ * Geographic focus from company profiler
+ */
+export interface GeographyContext {
+  primaryMarkets: string[];
+  officeLocations: string[];
+  confidence: 'high' | 'medium' | 'low';
+  reasoning: string;
+}
+
+/**
  * Company context subset for filter builder
  * Only the fields relevant for making filter decisions
  */
@@ -26,6 +36,7 @@ export interface CompanyContext {
   industry: string;
   competitiveAdvantage: string;
   salesMotion?: string;
+  geography?: GeographyContext;
 }
 
 /**
@@ -60,10 +71,21 @@ Industry: ${companyContext.industry}
 Competitive Advantage: ${companyContext.competitiveAdvantage}
 Sales Motion: ${companyContext.salesMotion || 'Unknown'}
 
+### Geographic Focus (CRITICAL for location selection)
+${companyContext.geography ? `
+Primary Markets: ${companyContext.geography.primaryMarkets.join(', ')}
+Office Locations: ${companyContext.geography.officeLocations.join(', ') || 'Not specified'}
+Geographic Confidence: ${companyContext.geography.confidence}
+Reasoning: ${companyContext.geography.reasoning}
+
+⚠️ USE THE PRIMARY MARKETS ABOVE as your default locations. Do NOT default to "US, UK, Canada" unless that matches the company's actual geographic focus.
+` : 'No geographic data available - default to United States, Canada, United Kingdom'}
+
 Use this context to sanity-check your filter choices. For example:
 - If the company is in "healthcare SaaS", consider healthcare-related industries, not just generic SaaS
 - If competitive advantage mentions "enterprise-grade", lean toward larger company sizes
 - If target market is "small business owners", don't over-filter to Fortune 500
+- If primary markets are "Germany, France, Netherlands", select those geos, NOT the US
 ` : 'No company context provided'}
 
 ## ICP Persona

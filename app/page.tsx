@@ -82,9 +82,8 @@ export default function LandingPage() {
   };
 
   const goToCampaignBuilder = () => {
-    // Generate a unique slug for the new campaign
-    const slug = `campaign-${Date.now().toString(36)}`;
-    router.push(`/campaign/${slug}`);
+    // Navigate to the "new" route which shows the domain entry form
+    router.push('/campaign/new');
   };
 
   return (
@@ -398,9 +397,8 @@ function PricingCard({ tier }: { tier: PricingTier }) {
   const router = useRouter();
 
   const handleSelectPlan = () => {
-    // Generate a unique slug for the new campaign
-    const slug = `campaign-${Date.now().toString(36)}`;
-    router.push(`/campaign/${slug}`);
+    // Navigate to the "new" route which shows the domain entry form
+    router.push('/campaign/new');
   };
 
   return (

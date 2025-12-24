@@ -257,6 +257,12 @@ export async function analyzeCompanyAndICP(
     industry: companyProfile.industry,
     competitiveAdvantage: companyProfile.competitiveAdvantage,
     salesMotion: companyProfile.salesMotion,
+    geography: companyProfile.geography ? {
+      primaryMarkets: companyProfile.geography.primaryMarkets,
+      officeLocations: companyProfile.geography.officeLocations,
+      confidence: companyProfile.geography.confidence,
+      reasoning: companyProfile.geography.reasoning,
+    } : undefined,
   };
   
   const filterResult = await buildLinkedInFilters(
@@ -423,6 +429,12 @@ export async function analyzeCompanyAndICPWithDetails(
     industry: companyProfileDetail.industry,
     competitiveAdvantage: companyProfileDetail.competitiveAdvantage,
     salesMotion: companyProfileDetail.salesMotion,
+    geography: companyProfileDetail.geography ? {
+      primaryMarkets: companyProfileDetail.geography.primaryMarkets,
+      officeLocations: companyProfileDetail.geography.officeLocations,
+      confidence: companyProfileDetail.geography.confidence,
+      reasoning: companyProfileDetail.geography.reasoning,
+    } : undefined,
   };
   
   const filterResult = await buildLinkedInFilters(

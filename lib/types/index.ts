@@ -43,6 +43,41 @@ export interface CompanyInfo {
   industry: string;
 }
 
+// Import types for analysis data
+import { CompanyProfile } from '../services/agents/companyProfiler';
+import { ICPPersona } from '../services/agents/icpBrainstormer';
+import { PersonaEvaluation } from '../services/agents/coldEmailRanker';
+
+export interface PersonaRankings {
+  evaluations: PersonaEvaluation[];
+  selectedPersonaId: string;
+  selectedPersonaName: string;
+  selectionReasoning: string;
+}
+
+export interface LinkedInFilters {
+  titles: string[];
+  industries: Array<LinkedInIndustry | string>;
+  locations: Array<LinkedInGeoLocation | string>;
+  companySize: string;
+  keywords?: string[];
+}
+
+export interface PipelineDebug {
+  pipelineId: string;
+  startedAt: string;
+  completedAt: string;
+  totalDurationMs: number;
+  steps: {
+    companyProfiler?: unknown;
+    icpBrainstormer?: unknown;
+    coldEmailRanker?: unknown;
+    linkedInFilterBuilder?: unknown;
+    leadFinder?: unknown;
+    emailWriter?: unknown;
+  };
+}
+
 export interface CampaignData {
   id: string;
   slug: string;
@@ -59,6 +94,15 @@ export interface CampaignData {
   priceTier2: number;
   priceTier2Emails: number;
   createdAt: string;
+  // New fields for full data persistence (camelCase to match existing pattern)
+  domain?: string;
+  updatedAt?: string;
+  salesNavigatorUrl?: string | null;
+  companyProfile?: CompanyProfile | null;
+  icpPersonas?: ICPPersona[] | null;
+  personaRankings?: PersonaRankings | null;
+  linkedinFilters?: LinkedInFilters | null;
+  pipelineDebug?: PipelineDebug | null;
 }
 
 export type TargetGeo = 

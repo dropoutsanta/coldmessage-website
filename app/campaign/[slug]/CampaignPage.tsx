@@ -3,7 +3,7 @@
 import { CampaignData, QualifiedLead } from '@/lib/supabase';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import WorldMap from './WorldMap';
 import DomainEntryForm from './DomainEntryForm';
 import ICPSettingsModal from './ICPSettingsModal';
@@ -104,13 +104,44 @@ function convertDebugDataToLiveDebug(debugData: CampaignDebugData): LiveDebugDat
 }
 
 export default function CampaignPage({ campaign: initialCampaign, slug }: Props) {
+  const router = useRouter();
   const [campaign, setCampaign] = useState<CampaignData | null>(initialCampaign);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [debugData, setDebugData] = useState<CampaignDebugData | null>(null);
   const [liveDebug, setLiveDebug] = useState<LiveDebugData | null>(null);
+  const [isRegenerating, setIsRegenerating] = useState(false);
   
   const searchParams = useSearchParams();
   const isDebugMode = searchParams.get('debug') === 'true';
+
+  const handleRegenerate = async () => {
+    if (!campaign?.domain) return;
+    
+    setIsRegenerating(true);
+    try {
+      // Navigate to domain entry form with the domain pre-filled
+      router.push(`/campaign/new?domain=${encodeURIComponent(campaign.domain)}`);
+    } catch (error) {
+      console.error('Failed to regenerate campaign:', error);
+      setIsRegenerating(false);
+    }
+  };
+
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return 'Unknown';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      });
+    } catch {
+      return 'Unknown';
+    }
+  };
 
   // Convert debugData to liveDebug format if we have debugData but not liveDebug
   const effectiveLiveDebug = liveDebug || (debugData ? convertDebugDataToLiveDebug(debugData) : null);
@@ -150,17 +181,29 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
       <div className="fixed top-0 left-1/4 w-[500px] h-[500px] bg-sky-200/40 rounded-full blur-[100px] pointer-events-none mix-blend-multiply" />
       <div className="fixed bottom-0 right-1/4 w-[600px] h-[600px] bg-cyan-200/40 rounded-full blur-[100px] pointer-events-none mix-blend-multiply" />
 
-      {/* Edit Settings Button - Floating */}
-      <button
-        onClick={() => setIsSettingsOpen(true)}
-        className="fixed top-4 right-4 z-50 bg-white px-4 py-2 rounded-lg shadow-lg border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-all flex items-center gap-2"
-      >
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-        </svg>
-        Edit Settings
-      </button>
+      {/* Action Buttons - Floating */}
+      <div className="fixed top-4 right-4 z-50 flex flex-col gap-2">
+        <button
+          onClick={() => setIsSettingsOpen(true)}
+          className="bg-white px-4 py-2 rounded-lg shadow-lg border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-all flex items-center gap-2"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          Edit Settings
+        </button>
+        <button
+          onClick={handleRegenerate}
+          disabled={isRegenerating || !campaign?.domain}
+          className="bg-sky-600 text-white px-4 py-2 rounded-lg shadow-lg border border-sky-700 text-sm font-semibold hover:bg-sky-700 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          {isRegenerating ? 'Regenerating...' : 'Regenerate Campaign'}
+        </button>
+      </div>
 
       {/* ICP Settings Modal */}
       <ICPSettingsModal
@@ -186,6 +229,28 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
             <p className="text-xl text-slate-600 font-medium">
               Your cold email campaign is ready to launch.
             </p>
+            
+            {/* Last Updated & Sales Nav Link */}
+            <div className="flex flex-col gap-2 text-sm">
+              {campaign.updated_at && (
+                <p className="text-slate-500">
+                  Last generated: <span className="font-semibold text-slate-700">{formatDate(campaign.updated_at)}</span>
+                </p>
+              )}
+              {campaign.sales_navigator_url && (
+                <a
+                  href={campaign.sales_navigator_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sky-600 hover:text-sky-700 font-medium flex items-center gap-1 w-fit"
+                >
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                  </svg>
+                  View Sales Navigator Search
+                </a>
+              )}
+            </div>
             
             <div className="flex flex-wrap gap-3">
               {[

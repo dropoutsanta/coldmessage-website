@@ -45,6 +45,54 @@ function normalizeCompanyName(name: string): string {
 }
 
 /**
+ * Normalize a first name for casual email use.
+ * Handles titles, nicknames in parentheses, and compound names.
+ * 
+ * "Dr. John Smith" -> "John"
+ * "Robert (Bob) Johnson" -> "Bob"
+ * "Mary-Jane Watson" -> "Mary-Jane"
+ * "Prof. Elizabeth" -> "Elizabeth"
+ */
+function normalizeFirstName(firstName: string, fullName?: string): string {
+  if (!firstName) return firstName;
+  
+  let name = firstName.trim();
+  
+  // If we have a full name, check for nickname patterns there first
+  // e.g., "Robert (Bob) Johnson" or "Robert 'Bob' Johnson"
+  if (fullName) {
+    const nicknameMatch = fullName.match(/\(([^)]+)\)/) || fullName.match(/'([^']+)'/) || fullName.match(/"([^"]+)"/);
+    if (nicknameMatch) {
+      // Use the nickname - it's more casual
+      return nicknameMatch[1].trim();
+    }
+  }
+  
+  // Remove common titles/prefixes
+  const titlePatterns = [
+    /^(Dr\.?|Prof\.?|Mr\.?|Mrs\.?|Ms\.?|Miss|Sir|Dame|Rev\.?|Hon\.?)\s+/i,
+  ];
+  
+  for (const pattern of titlePatterns) {
+    name = name.replace(pattern, '');
+  }
+  
+  // Handle "J. Robert" -> "Robert" (initial followed by actual name)
+  name = name.replace(/^[A-Z]\.?\s+/, '');
+  
+  // If the name still has multiple parts (shouldn't for first name, but just in case)
+  // take the first part unless it's an initial
+  const parts = name.split(/\s+/);
+  if (parts.length > 1 && parts[0].length <= 2) {
+    name = parts[1]; // Skip the initial
+  } else {
+    name = parts[0];
+  }
+  
+  return name.trim();
+}
+
+/**
  * Try to extract the primary position from a lead's data.
  * 
  * The Apify Sales Navigator scraper has a known issue where it sometimes returns
@@ -222,6 +270,14 @@ Write a personalized cold email that:
 
 IMPORTANT: Do NOT start with compliments or flattery. Skip the "I saw your profile" or "Congrats on..." garbage. Just get to the point.
 
+## Writing Style
+
+Write punchy, direct copy. Avoid filler words and weak language:
+- NO: "just", "really", "very", "actually", "basically", "honestly", "definitely"
+- NO: "I just wanted to...", "I was wondering if...", "I think that...", "I believe that..."
+- NO: "kind of", "sort of", "a little bit", "perhaps", "maybe"
+- Write with confidence. State things directly, don't hedge.
+
 ## Subject Line Requirements
 
 The subject line is CRITICAL. It must be:
@@ -298,10 +354,13 @@ export async function generateEmailsForLeads(
         // This helps when the lead matched on a secondary role (side gig, board position, etc.)
         const primaryPosition = extractPrimaryPosition(lead);
         
+        // Normalize first name for casual email use
+        const normalizedFirstName = normalizeFirstName(lead.first_name, lead.full_name);
+        
         return {
           id: lead.profile_id || `lead-${index + 1}`,
           name: lead.full_name,
-          firstName: lead.first_name,
+          firstName: normalizedFirstName,
           lastName: lead.last_name,
           title: primaryPosition.title,
           company: normalizeCompanyName(primaryPosition.company),

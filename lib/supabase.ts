@@ -1,4 +1,8 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { CompanyProfile } from './services/agents/companyProfiler';
+import { ICPPersona } from './services/agents/icpBrainstormer';
+import { PersonaEvaluation } from './services/agents/coldEmailRanker';
+import { ICPSettings, LinkedInGeoLocation, LinkedInIndustry } from './types';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -36,6 +40,102 @@ export type TargetGeo =
       countries?: string[];
     };
 
+// Analysis data types
+export interface PersonaRankings {
+  evaluations: PersonaEvaluation[];
+  selectedPersonaId: string;
+  selectedPersonaName: string;
+  selectionReasoning: string;
+}
+
+export interface LinkedInFilters {
+  titles: string[];
+  industries: Array<LinkedInIndustry | string>;
+  locations: Array<LinkedInGeoLocation | string>;
+  companySize: string;
+  keywords?: string[];
+}
+
+export interface PipelineDebug {
+  pipelineId: string;
+  startedAt: string;
+  completedAt: string;
+  totalDurationMs: number;
+  steps: {
+    companyProfiler?: {
+      agent: string;
+      title: string;
+      startedAt: string;
+      completedAt: string;
+      durationMs: number;
+      status: 'completed' | 'failed';
+      prompt?: string;
+      response?: string;
+      output?: CompanyProfile;
+    };
+    icpBrainstormer?: {
+      agent: string;
+      title: string;
+      startedAt: string;
+      completedAt: string;
+      durationMs: number;
+      status: 'completed' | 'failed';
+      prompt?: string;
+      response?: string;
+      output?: {
+        personas: ICPPersona[];
+        reasoning: string;
+      };
+    };
+    coldEmailRanker?: {
+      agent: string;
+      title: string;
+      startedAt: string;
+      completedAt: string;
+      durationMs: number;
+      status: 'completed' | 'failed';
+      prompt?: string;
+      response?: string;
+      output?: {
+        evaluations: PersonaEvaluation[];
+        selectedPersonaId: string;
+        selectedPersonaName: string;
+        selectionReasoning: string;
+      };
+    };
+    linkedInFilterBuilder?: {
+      agent: string;
+      title: string;
+      startedAt: string;
+      completedAt: string;
+      durationMs: number;
+      status: 'completed' | 'failed';
+      prompt?: string;
+      response?: string;
+      output?: {
+        filters: ICPSettings;
+        salesNavUrl: string;
+      };
+    };
+    leadFinder?: {
+      salesNavUrl: string;
+      requestId: string;
+      startedAt: string;
+      completedAt?: string;
+      durationMs?: number;
+      leadsFound: number;
+      status: 'pending' | 'completed' | 'timeout' | 'error';
+    };
+    emailWriter?: {
+      startedAt: string;
+      completedAt: string;
+      durationMs: number;
+      emailsGenerated: number;
+      parallelBatchSize: number;
+    };
+  };
+}
+
 export interface CampaignData {
   id: string;
   slug: string;
@@ -54,5 +154,14 @@ export interface CampaignData {
   price_tier_2: number;
   price_tier_2_emails: number;
   created_at: string;
+  // New fields for full data persistence (using snake_case to match database columns)
+  domain?: string;
+  updated_at?: string;
+  sales_navigator_url?: string | null;
+  company_profile?: CompanyProfile | null;
+  icp_personas?: ICPPersona[] | null;
+  persona_rankings?: PersonaRankings | null;
+  linkedin_filters?: LinkedInFilters | null;
+  pipeline_debug?: PipelineDebug | null;
 }
 

@@ -380,6 +380,98 @@ export async function generateCampaign(
       ? firstLocation.text 
       : (typeof firstLocation === 'string' ? firstLocation : 'United States');
 
+    // Get Sales Navigator URL
+    const salesNavUrl = salesNavigatorUrl || buildSalesNavUrl(finalICP);
+
+    // Extract all personas from debug trace if available
+    let allPersonas = null;
+    let personaRankings = null;
+    if (analysis.debugTrace) {
+      // Get all personas from ICP Brainstormer step
+      const icpStep = analysis.debugTrace.steps.icpBrainstormer;
+      if (icpStep && icpStep.output && typeof icpStep.output === 'object' && 'personas' in icpStep.output) {
+        allPersonas = (icpStep.output as { personas: unknown[] }).personas;
+      }
+
+      // Get persona rankings from Cold Email Ranker step
+      const rankerStep = analysis.debugTrace.steps.coldEmailRanker;
+      if (rankerStep && rankerStep.output && typeof rankerStep.output === 'object') {
+        const output = rankerStep.output as {
+          evaluations?: unknown[];
+          selectedPersonaId?: string;
+          selectedPersonaName?: string;
+          selectionReasoning?: string;
+        };
+        if (output.evaluations && output.selectedPersonaId && output.selectedPersonaName && output.selectionReasoning) {
+          personaRankings = {
+            evaluations: output.evaluations as any[],
+            selectedPersonaId: output.selectedPersonaId,
+            selectedPersonaName: output.selectedPersonaName,
+            selectionReasoning: output.selectionReasoning,
+          };
+        }
+      }
+    }
+
+    // Build complete pipeline debug data
+    let pipelineDebug = null;
+    if (debugData) {
+      pipelineDebug = {
+        pipelineId: debugData.analysis.pipelineId,
+        startedAt: debugData.analysis.startedAt,
+        completedAt: debugData.analysis.completedAt,
+        totalDurationMs: debugData.analysis.totalDurationMs,
+        steps: {
+          companyProfiler: debugData.analysis.steps.companyProfiler ? {
+            agent: debugData.analysis.steps.companyProfiler.agent,
+            title: debugData.analysis.steps.companyProfiler.title,
+            startedAt: debugData.analysis.steps.companyProfiler.startedAt,
+            completedAt: debugData.analysis.steps.companyProfiler.completedAt,
+            durationMs: debugData.analysis.steps.companyProfiler.durationMs,
+            status: debugData.analysis.steps.companyProfiler.status,
+            prompt: debugData.analysis.steps.companyProfiler.prompt,
+            response: debugData.analysis.steps.companyProfiler.response,
+            output: debugData.analysis.steps.companyProfiler.output,
+          } : undefined,
+          icpBrainstormer: debugData.analysis.steps.icpBrainstormer ? {
+            agent: debugData.analysis.steps.icpBrainstormer.agent,
+            title: debugData.analysis.steps.icpBrainstormer.title,
+            startedAt: debugData.analysis.steps.icpBrainstormer.startedAt,
+            completedAt: debugData.analysis.steps.icpBrainstormer.completedAt,
+            durationMs: debugData.analysis.steps.icpBrainstormer.durationMs,
+            status: debugData.analysis.steps.icpBrainstormer.status,
+            prompt: debugData.analysis.steps.icpBrainstormer.prompt,
+            response: debugData.analysis.steps.icpBrainstormer.response,
+            output: debugData.analysis.steps.icpBrainstormer.output,
+          } : undefined,
+          coldEmailRanker: debugData.analysis.steps.coldEmailRanker ? {
+            agent: debugData.analysis.steps.coldEmailRanker.agent,
+            title: debugData.analysis.steps.coldEmailRanker.title,
+            startedAt: debugData.analysis.steps.coldEmailRanker.startedAt,
+            completedAt: debugData.analysis.steps.coldEmailRanker.completedAt,
+            durationMs: debugData.analysis.steps.coldEmailRanker.durationMs,
+            status: debugData.analysis.steps.coldEmailRanker.status,
+            prompt: debugData.analysis.steps.coldEmailRanker.prompt,
+            response: debugData.analysis.steps.coldEmailRanker.response,
+            output: debugData.analysis.steps.coldEmailRanker.output,
+          } : undefined,
+          linkedInFilterBuilder: debugData.analysis.steps.linkedInFilterBuilder ? {
+            agent: debugData.analysis.steps.linkedInFilterBuilder.agent,
+            title: debugData.analysis.steps.linkedInFilterBuilder.title,
+            startedAt: debugData.analysis.steps.linkedInFilterBuilder.startedAt,
+            completedAt: debugData.analysis.steps.linkedInFilterBuilder.completedAt,
+            durationMs: debugData.analysis.steps.linkedInFilterBuilder.durationMs,
+            status: debugData.analysis.steps.linkedInFilterBuilder.status,
+            prompt: debugData.analysis.steps.linkedInFilterBuilder.prompt,
+            response: debugData.analysis.steps.linkedInFilterBuilder.response,
+            output: debugData.analysis.steps.linkedInFilterBuilder.output,
+          } : undefined,
+          leadFinder: debugData.leadSearch,
+          emailWriter: debugData.emailGeneration,
+        },
+      };
+    }
+
     const campaign: CampaignData = {
       id: `campaign-${Date.now()}`,
       slug,
@@ -400,6 +492,15 @@ export async function generateCampaign(
       priceTier2: 399,
       priceTier2Emails: 2500,
       createdAt: new Date().toISOString(),
+      // New fields for full data persistence (camelCase to match CampaignData type)
+      domain,
+      updatedAt: new Date().toISOString(),
+      salesNavigatorUrl: salesNavUrl,
+      companyProfile: analysis.companyProfile || null,
+      icpPersonas: allPersonas as any,
+      personaRankings: personaRankings as any,
+      linkedinFilters: finalICP as any,
+      pipelineDebug: pipelineDebug as any,
     };
 
     updateProgress(slug, {

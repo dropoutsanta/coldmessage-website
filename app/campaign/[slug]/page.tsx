@@ -92,6 +92,11 @@ const demoData: CampaignData = {
 };
 
 async function getCampaignData(slug: string): Promise<CampaignData | null> {
+  // Special slug "new" always shows domain entry form
+  if (slug === 'new') {
+    return null;
+  }
+
   // Demo mode - return demo data for known demo slugs, null otherwise
   if (isDemoMode) {
     // Only return demo data for specific demo slugs

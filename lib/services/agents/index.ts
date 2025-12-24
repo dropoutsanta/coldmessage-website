@@ -23,11 +23,11 @@
 //   - Optimizes for Sales Navigator search
 
 export { profileCompany } from './companyProfiler';
-export type { CompanyProfile, CompanyProfilerResult } from './companyProfiler';
+export type { CompanyProfile, CompanyProfilerResult, GeographicFocus } from './companyProfiler';
 export { brainstormICPs } from './icpBrainstormer';
 export type { ICPPersona, ICPBrainstormResult } from './icpBrainstormer';
 export { rankPersonasForColdEmail } from './coldEmailRanker';
 export type { PersonaEvaluation, ColdEmailRankingResult } from './coldEmailRanker';
 export { buildLinkedInFilters } from './linkedinFilterBuilder';
-export type { LinkedInFilterResult, CompanyContext } from './linkedinFilterBuilder';
+export type { LinkedInFilterResult, CompanyContext, GeographyContext } from './linkedinFilterBuilder';
 

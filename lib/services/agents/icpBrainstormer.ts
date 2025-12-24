@@ -77,6 +77,15 @@ Pricing Model: ${companyProfile.pricingModel}
 Company Maturity: ${companyProfile.companyMaturity}
 Sales Motion: ${companyProfile.salesMotion}
 
+## Geographic Focus (Where This Company Sells)
+
+Primary Markets: ${companyProfile.geography?.primaryMarkets?.join(', ') || 'Unknown'}
+Office Locations: ${companyProfile.geography?.officeLocations?.join(', ') || 'Unknown'}
+Geographic Confidence: ${companyProfile.geography?.confidence || 'Unknown'}
+Reasoning: ${companyProfile.geography?.reasoning || 'No geographic analysis available'}
+
+⚠️ Consider these geographies when thinking about buyer personas. A company based in the UK selling to UK businesses will have different buyers than a global SaaS company.
+
 ## Case Studies & Testimonials (PAY CLOSE ATTENTION - these reveal who ACTUALLY buys)
 
 ${companyProfile.caseStudiesOrTestimonials.length > 0 

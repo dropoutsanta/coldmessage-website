@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CampaignData } from '@/lib/supabase';
 import { CampaignDebugData } from '@/lib/types/debug';
@@ -26,6 +26,7 @@ const loadingSteps = [
 
 export default function DomainEntryForm({ slug, debugMode = false, onCampaignGenerated }: Props) {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const initialDomain = searchParams.get('domain') || '';
   
   const [domain, setDomain] = useState(initialDomain);
@@ -138,10 +139,11 @@ export default function DomainEntryForm({ slug, debugMode = false, onCampaignGen
       const totalDuration = loadingSteps.reduce((acc, step) => acc + step.duration, 0);
       
       // Start the API call with debug mode if enabled
+      // Note: slug is optional - API will generate from domain
       const apiPromise = fetch('/api/generate-campaign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ domain: cleanDomain, slug, debug: debugMode }),
+        body: JSON.stringify({ domain: cleanDomain, debug: debugMode }),
       });
 
       // Wait for both the minimum time and the API call
@@ -156,7 +158,10 @@ export default function DomainEntryForm({ slug, debugMode = false, onCampaignGen
 
       const data = await response.json();
       
-      if (data.success && data.campaign) {
+      if (data.success && data.campaign && data.slug) {
+        // Redirect to the domain-based slug
+        router.replace(`/campaign/${data.slug}`);
+        // Also call the callback in case parent component needs it
         onCampaignGenerated(data.campaign, data.debugData, liveDebug ?? undefined);
       } else {
         throw new Error(data.error || 'Unknown error');

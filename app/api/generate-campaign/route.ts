@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { generateCampaign, getCampaignProgress } from '@/lib/services/campaignGenerator';
 import { ICPSettings } from '@/lib/types';
+import { domainToSlug } from '@/lib/utils/slugify';
 
 interface GenerateRequest {
   domain: string;
-  slug: string;
+  slug?: string; // Optional - will be generated from domain if not provided
   icpSettings?: ICPSettings;
   salesNavigatorUrl?: string;
   debug?: boolean;
@@ -14,14 +15,17 @@ interface GenerateRequest {
 export async function POST(request: NextRequest) {
   try {
     const body: GenerateRequest = await request.json();
-    const { domain, slug, icpSettings, salesNavigatorUrl, debug = false } = body;
+    const { domain, slug: providedSlug, icpSettings, salesNavigatorUrl, debug = false } = body;
 
-    if (!domain || !slug) {
+    if (!domain) {
       return NextResponse.json(
-        { error: 'Domain and slug are required' },
+        { error: 'Domain is required' },
         { status: 400 }
       );
     }
+
+    // Generate slug from domain
+    const slug = providedSlug || domainToSlug(domain);
 
     console.log(`[API] Starting campaign generation for ${domain} (slug: ${slug})${debug ? ' [DEBUG MODE]' : ''}`);
 
@@ -30,10 +34,11 @@ export async function POST(request: NextRequest) {
       const result = await generateCampaign({ domain, slug, icpSettings, salesNavigatorUrl, captureDebug: debug });
       const { campaign: campaignData, debugData } = result;
 
-      // Transform to database format
+      // Transform to database format (snake_case for Supabase)
       const campaign = {
         id: campaignData.id,
         slug: campaignData.slug,
+        domain: campaignData.domain || domain,
         company_name: campaignData.companyName,
         website_url: campaignData.websiteUrl,
         loom_video_url: '',
@@ -59,9 +64,16 @@ export async function POST(request: NextRequest) {
         price_tier_2: campaignData.priceTier2,
         price_tier_2_emails: campaignData.priceTier2Emails,
         created_at: campaignData.createdAt,
+        updated_at: campaignData.updatedAt || new Date().toISOString(),
+        sales_navigator_url: campaignData.salesNavigatorUrl || null,
+        company_profile: campaignData.companyProfile || null,
+        icp_personas: campaignData.icpPersonas || null,
+        persona_rankings: campaignData.personaRankings || null,
+        linkedin_filters: campaignData.linkedinFilters || null,
+        pipeline_debug: campaignData.pipelineDebug || null,
       };
 
-      // Save to Supabase if available
+      // Upsert to Supabase (insert or update based on slug)
       if (supabase) {
         const { data: existing } = await supabase
           .from('campaigns')
@@ -70,18 +82,35 @@ export async function POST(request: NextRequest) {
           .single();
 
         if (existing) {
-          await supabase
+          const { data, error } = await supabase
             .from('campaigns')
             .update(campaign)
-            .eq('slug', slug);
+            .eq('slug', slug)
+            .select()
+            .single();
+
+          if (error) {
+            console.error('[API] Failed to update campaign:', error);
+            return NextResponse.json({ error: 'Failed to update campaign' }, { status: 500 });
+          }
+          return NextResponse.json({ success: true, campaign: data, slug, debugData });
         } else {
-          await supabase
+          const { data, error } = await supabase
             .from('campaigns')
-            .insert(campaign);
+            .insert(campaign)
+            .select()
+            .single();
+
+          if (error) {
+            console.error('[API] Failed to create campaign:', error);
+            return NextResponse.json({ error: 'Failed to create campaign' }, { status: 500 });
+          }
+          return NextResponse.json({ success: true, campaign: data, slug, debugData });
         }
       }
 
-      return NextResponse.json({ success: true, campaign, debugData });
+      // Demo mode - return without saving
+      return NextResponse.json({ success: true, campaign, slug, debugData });
     } catch (generationError) {
       console.error('Campaign generation failed:', generationError);
       
@@ -100,6 +129,7 @@ export async function POST(request: NextRequest) {
 
       const campaignData = {
         slug,
+        domain,
         company_name: companyName,
         website_url: domain.startsWith('http') ? domain : `https://${domain}`,
         loom_video_url: '',
@@ -127,7 +157,8 @@ export async function POST(request: NextRequest) {
         price_tier_1: 100,
         price_tier_1_emails: 500,
         price_tier_2: 399,
-        price_tier_2_emails: 2500
+        price_tier_2_emails: 2500,
+        updated_at: new Date().toISOString(),
       };
 
       if (!supabase) {
@@ -137,7 +168,8 @@ export async function POST(request: NextRequest) {
             id: 'demo-generated',
             ...campaignData,
             created_at: new Date().toISOString()
-          }
+          },
+          slug
         });
       }
 
@@ -158,7 +190,7 @@ export async function POST(request: NextRequest) {
         if (error) {
           return NextResponse.json({ error: 'Failed to update campaign' }, { status: 500 });
         }
-        return NextResponse.json({ success: true, campaign: data });
+        return NextResponse.json({ success: true, campaign: data, slug });
       } else {
         const { data, error } = await supabase
           .from('campaigns')
@@ -169,7 +201,7 @@ export async function POST(request: NextRequest) {
         if (error) {
           return NextResponse.json({ error: 'Failed to create campaign' }, { status: 500 });
         }
-        return NextResponse.json({ success: true, campaign: data });
+        return NextResponse.json({ success: true, campaign: data, slug });
       }
     }
   } catch (error) {
