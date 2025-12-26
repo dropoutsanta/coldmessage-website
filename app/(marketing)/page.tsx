@@ -177,18 +177,18 @@ export default function LandingPage() {
 
       {/* Navigation */}
       <nav className={cn(
-        "fixed top-0 left-0 right-0 z-50 transition-all duration-300",
+        "fixed top-0 left-0 right-0 z-50 transition-all duration-500 ease-out border-b",
         scrolled 
-          ? "bg-white/60 backdrop-blur-xl border-b border-white/50 py-3 shadow-lg shadow-sky-100/20" 
-          : "bg-transparent py-5"
+          ? "bg-white/60 backdrop-blur-xl border-white/50 py-3 shadow-lg shadow-sky-100/20" 
+          : "bg-transparent border-transparent py-5"
       )}>
         <div className="max-w-6xl mx-auto px-6 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="relative">
               <div className="absolute inset-0 bg-cyan-400 blur-md opacity-30 rounded-full"></div>
-              <img src="/coldmessage_logo.png" alt="ColdMessage" className="h-8 w-auto relative z-10" />
+              <img src="/coldmessage_logo.png" alt="ColdMessage" className="h-12 w-auto relative z-10" />
             </div>
-            <span className="font-bold text-slate-900 text-xl tracking-tight">ColdMessage</span>
+            <span className="font-bold text-slate-900 text-xl tracking-tight">ColdMessage.io</span>
           </div>
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600">
             <button onClick={() => scrollToSection('how-it-works')} className="transition-colors duration-500">How it works</button>
@@ -223,15 +223,16 @@ export default function LandingPage() {
                 </svg>
 
                 {/* Main 3D Ice Text */}
-                <h2 className="ice-text-3d text-7xl sm:text-8xl md:text-9xl tracking-normal select-none relative z-10">
-                  Send 500 Cold Emails Today
+                <h2 className="ice-text text-5xl sm:text-7xl md:text-8xl lg:text-9xl tracking-normal select-none relative z-10 flex flex-col items-center">
+                  <span>Send 500</span>
+                  <span className="ice-text text-5xl sm:text-7xl md:text-8xl lg:text-9xl" style={{ '--ice-highlight': '#FFFFFF00' } as React.CSSProperties}>Cold Emails</span>
+                  <span>Today</span>
                 </h2>
               </div>
             </div>
             
             <p className="text-xl md:text-2xl text-slate-500 max-w-2xl mx-auto mb-14 leading-relaxed font-medium">
-              Enter your domain. We analyze your business, find leads, 
-              write emails—and send them <span className="text-slate-700 font-bold">today</span>.
+              Type your domain. We find the buyers, craft the pitch, and fill your inbox with replies—<span className="text-slate-700 font-bold">100% done-for-you</span>.
             </p>
             
             {/* Domain Input - "Thick Ice" Effect */}

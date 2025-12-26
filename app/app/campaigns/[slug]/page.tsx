@@ -8,7 +8,6 @@ import { CampaignData } from '@/lib/types';
 import {
   ArrowLeft,
   Play,
-  Pause,
   Users,
   Mail,
   CheckCircle,
@@ -61,7 +60,7 @@ export default function CampaignDetailPage() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-2xl font-bold text-white mb-2">Campaign not found</h2>
-          <p className="text-white/60 mb-6">The campaign you're looking for doesn't exist.</p>
+          <p className="text-white/60 mb-6">The campaign you&apos;re looking for doesn&apos;t exist.</p>
           <Link
             href="/app/campaigns"
             className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors"
@@ -77,7 +76,7 @@ export default function CampaignDetailPage() {
   const stats = [
     {
       label: 'Total Leads',
-      value: campaign.leads?.length || 0,
+      value: campaign.qualifiedLeads?.length || 0,
       icon: Users,
       color: 'text-cyan-400',
       bgColor: 'bg-cyan-400/10',
@@ -123,7 +122,7 @@ export default function CampaignDetailPage() {
               {campaign.companyName} Campaign
             </h1>
             <p className="text-white/60">
-              Created {new Date(campaign.createdAt || Date.now()).toLocaleDateString()}
+              Created {new Date(campaign.createdAt).toLocaleDateString()}
             </p>
           </div>
 
@@ -213,9 +212,9 @@ export default function CampaignDetailPage() {
               </Link>
             </div>
 
-            {campaign.leads && campaign.leads.length > 0 ? (
+            {campaign.qualifiedLeads && campaign.qualifiedLeads.length > 0 ? (
               <div className="space-y-3">
-                {campaign.leads.slice(0, 5).map((lead, index) => (
+                {campaign.qualifiedLeads.slice(0, 5).map((lead, index) => (
                   <div
                     key={index}
                     className="flex items-center gap-4 p-3 bg-white/5 rounded-lg"
@@ -230,9 +229,9 @@ export default function CampaignDetailPage() {
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
-                      {lead.email ? (
+                      {lead.emailBody ? (
                         <span className="px-2 py-1 bg-emerald-500/20 text-emerald-400 text-xs rounded-full">
-                          Email verified
+                          Email ready
                         </span>
                       ) : (
                         <span className="px-2 py-1 bg-amber-500/20 text-amber-400 text-xs rounded-full">
@@ -242,9 +241,9 @@ export default function CampaignDetailPage() {
                     </div>
                   </div>
                 ))}
-                {campaign.leads.length > 5 && (
+                {campaign.qualifiedLeads.length > 5 && (
                   <p className="text-white/40 text-sm text-center pt-2">
-                    +{campaign.leads.length - 5} more leads
+                    +{campaign.qualifiedLeads.length - 5} more leads
                   </p>
                 )}
               </div>
@@ -299,7 +298,7 @@ export default function CampaignDetailPage() {
                 <div>
                   <p className="text-white text-sm">Campaign created</p>
                   <p className="text-white/40 text-xs">
-                    {new Date(campaign.createdAt || Date.now()).toLocaleString()}
+                    {new Date(campaign.createdAt).toLocaleString()}
                   </p>
                 </div>
               </div>

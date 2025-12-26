@@ -157,40 +157,118 @@ input:focus-visible {
   animation: gradient 3s ease infinite;
 }
 
-/* Ice Text 3D Effect */
-.ice-text-3d {
+/* ==============================================
+   ICE TEXT 3D EFFECT SYSTEM
+   
+   Usage: 
+     <h1 class="ice-text">Default 8px cyan</h1>
+     <h1 class="ice-text ice-text--4">4px depth</h1>
+     <h1 class="ice-text ice-text--12">12px depth</h1>
+     <h1 class="ice-text ice-text--pink">Pink variant</h1>
+   
+   Custom colors via inline style:
+     style="--ice-l1: #fff; --ice-l2: #eee; ..."
+   ============================================== */
+
+/* Base ice text - uses 8px depth by default */
+.ice-text {
+  /* Layer colors (light to deep) */
+  --ice-highlight: #ffffff;
+  --ice-l1: #cffafe;
+  --ice-l2: #a5f3fc;
+  --ice-l3: #67e8f9;
+  --ice-l4: #22d3ee;
+  --ice-l5: #06b6d4;
+  --ice-l6: #0891b2;
+  --ice-l7: #0e7490;
+  --ice-l8: #155e75;
+  --ice-glow: rgba(34, 211, 238, 0.6);
+  --ice-stroke: 2px;
+  
   font-family: 'Titan One', sans-serif;
   position: relative;
-  z-index: 10;
-  color: #e0f2fe; /* light blue base */
+  color: #e0f2fe;
+  -webkit-text-stroke: var(--ice-stroke) var(--ice-highlight);
+  
+  /* Default 8px depth */
   text-shadow: 
-    /* Top highlight (snow cap) */
-    0 -2px 0 #ffffff,
-    /* 3D Extrusion Layer 1 (lighter cyan) */
-    0 1px 0 #cffafe,
-    0 2px 0 #a5f3fc,
-    0 3px 0 #67e8f9,
-    0 4px 0 #22d3ee,
-    /* 3D Extrusion Layer 2 (deeper cyan) */
-    0 5px 0 #06b6d4,
-    0 6px 0 #0891b2,
-    0 7px 0 #0e7490,
-    0 8px 0 #155e75,
-    /* Deep shadow for pop */
+    0 -2px 0 var(--ice-highlight),
+    0 1px 0 var(--ice-l1),
+    0 2px 0 var(--ice-l2),
+    0 3px 0 var(--ice-l3),
+    0 4px 0 var(--ice-l4),
+    0 5px 0 var(--ice-l5),
+    0 6px 0 var(--ice-l6),
+    0 7px 0 var(--ice-l7),
+    0 8px 0 var(--ice-l8),
     0 10px 20px rgba(0,0,0,0.2),
-    0 0 30px rgba(34,211,238,0.6);
+    0 0 30px var(--ice-glow);
   
-  /* Outline */
-  -webkit-text-stroke: 2px #fff;
-  
-  /* Subtle gradient fill */
-  background: linear-gradient(180deg, #ffffff 20%, #22d3ee 80%);
+  background: linear-gradient(180deg, var(--ice-highlight) 20%, var(--ice-l4) 80%);
   -webkit-background-clip: text;
   background-clip: text;
-  /* Note: text-fill-color transparent hides the shadow in some browsers if not careful, 
-     so we use a fallback color and only partial transparency if needed, 
-     but for this specific stack, keeping color solid and using background-clip usually 
-     overrides it. Actually, standard trick: */
   -webkit-text-fill-color: transparent;
+}
+
+/* Depth: 4px */
+.ice-text--4 {
+  text-shadow: 
+    0 -1px 0 var(--ice-highlight),
+    0 1px 0 var(--ice-l2),
+    0 2px 0 var(--ice-l4),
+    0 3px 0 var(--ice-l6),
+    0 4px 0 var(--ice-l8),
+    0 6px 12px rgba(0,0,0,0.15),
+    0 0 20px var(--ice-glow);
+}
+
+/* Depth: 12px */
+.ice-text--12 {
+  text-shadow: 
+    0 -2px 0 var(--ice-highlight),
+    0 1px 0 var(--ice-l1),
+    0 2px 0 var(--ice-l1),
+    0 3px 0 var(--ice-l2),
+    0 4px 0 var(--ice-l2),
+    0 5px 0 var(--ice-l3),
+    0 6px 0 var(--ice-l4),
+    0 7px 0 var(--ice-l5),
+    0 8px 0 var(--ice-l5),
+    0 9px 0 var(--ice-l6),
+    0 10px 0 var(--ice-l7),
+    0 11px 0 var(--ice-l7),
+    0 12px 0 var(--ice-l8),
+    0 14px 28px rgba(0,0,0,0.25),
+    0 0 40px var(--ice-glow);
+}
+
+/* Color preset: Pink */
+.ice-text--pink {
+  --ice-highlight: #ffffff;
+  --ice-l1: #fce7f3;
+  --ice-l2: #fbcfe8;
+  --ice-l3: #f9a8d4;
+  --ice-l4: #f472b6;
+  --ice-l5: #ec4899;
+  --ice-l6: #db2777;
+  --ice-l7: #be185d;
+  --ice-l8: #9d174d;
+  --ice-glow: rgba(244, 114, 182, 0.6);
+  color: #fce7f3;
+}
+
+/* Color preset: Blue */
+.ice-text--blue {
+  --ice-highlight: #ffffff;
+  --ice-l1: #dbeafe;
+  --ice-l2: #bfdbfe;
+  --ice-l3: #93c5fd;
+  --ice-l4: #60a5fa;
+  --ice-l5: #3b82f6;
+  --ice-l6: #2563eb;
+  --ice-l7: #1d4ed8;
+  --ice-l8: #1e40af;
+  --ice-glow: rgba(96, 165, 250, 0.6);
+  color: #dbeafe;
 }
 
