@@ -1,6 +1,6 @@
 import { scrapeWebsite, extractCompanyName } from './websiteScraper';
 import { analyzeCompanyAndICP, AnalysisProgressCallback } from './icpAnalyzer';
-import { initializeLeadSearch, waitForLeadResults, buildSalesNavUrl } from './leadFinder';
+import { findLeads, buildSalesNavUrl } from './leadFinder';
 import { generateEmailsForLeads } from './emailWriter';
 import { CampaignData, GenerateCampaignRequest, ICPSettings, TargetGeo, LinkedInGeoLocation } from '../types';
 import { CampaignDebugData } from '../types/debug';
@@ -79,15 +79,19 @@ export interface LiveAgentResult {
   output?: unknown;
 }
 
-// In-memory store for campaign generation progress
+// In-memory store for campaign generation progress (keyed by domain, not slug)
 const campaignProgress: Map<string, CampaignProgress> = new Map();
 
-export function getCampaignProgress(slug: string): CampaignProgress | undefined {
-  return campaignProgress.get(slug);
+export function getCampaignProgress(domain: string): CampaignProgress | undefined {
+  // Normalize domain for lookup
+  const normalizedDomain = domain.toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
+  return campaignProgress.get(normalizedDomain);
 }
 
-function updateProgress(slug: string, progress: CampaignProgress) {
-  campaignProgress.set(slug, progress);
+function updateProgress(domain: string, slug: string, progress: CampaignProgress) {
+  // Normalize domain for storage
+  const normalizedDomain = domain.toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
+  campaignProgress.set(normalizedDomain, progress);
   console.log(`[CampaignGenerator] ${slug}: ${progress.status} (${progress.progress}%) - ${progress.message}`);
 }
 
@@ -116,8 +120,11 @@ export async function generateCampaign(
   const startTime = Date.now();
 
   try {
-    // Check if Apify is configured
+    // Check if lead source is configured (Apify or AI Ark)
     const hasApify = !!process.env.APIFY_API_TOKEN;
+    const hasArk = !!process.env.AI_ARK_TOKEN;
+    const useArk = process.env.LEAD_SOURCE === '1';
+    const hasLeadSource = useArk ? hasArk : hasApify;
     
     // If we have ICP settings or sales nav URL, we can start lead search EARLY (in parallel with scraping)
     let leadSearchPromise: Promise<{ leads: LinkedInLead[] }> | null = null;
@@ -136,19 +143,18 @@ export async function generateCampaign(
       profile_id: string;
     };
     
-    if (hasApify && (salesNavigatorUrl || icpSettings)) {
-      const searchUrl = salesNavigatorUrl || buildSalesNavUrl(icpSettings!);
-      console.log('[CampaignGenerator] Starting lead search early (parallel with website analysis)');
+    if (hasLeadSource && (salesNavigatorUrl || icpSettings)) {
+      console.log(`[CampaignGenerator] Starting lead search early with ${useArk ? 'AI Ark' : 'Apify'} (parallel with website analysis)`);
       
-      updateProgress(slug, {
+      updateProgress(domain, slug, {
         status: 'finding_leads',
-        message: 'Starting lead search...',
+        message: `Starting lead search with ${useArk ? 'AI Ark' : 'LinkedIn Sales Navigator'}...`,
         progress: 10,
       });
       
       // Start lead search in background - don't await yet!
-      leadSearchPromise = initializeLeadSearch(searchUrl, 25)
-        .then(result => waitForLeadResults(result.requestId))
+      // findLeads() handles both Apify and AI Ark based on LEAD_SOURCE env
+      leadSearchPromise = findLeads(icpSettings!, salesNavigatorUrl, 5)
         .then(result => ({ leads: result.leads || [] }))
         .catch(err => {
           console.error('[CampaignGenerator] Early lead search failed:', err);
@@ -158,75 +164,84 @@ export async function generateCampaign(
 
     // Step 1: Scrape website
     const scrapeStart = Date.now();
-    updateProgress(slug, {
+    updateProgress(domain, slug, {
       status: 'scraping_website',
       message: 'Analyzing your website...',
       progress: 15,
-      liveDebug: captureDebug ? liveDebug : undefined,
+      liveDebug, // Always pass liveDebug for insight teasers
     });
 
     const scrapedWebsite = await scrapeWebsite(domain);
     const scrapeEnd = Date.now();
     
-    // Update live debug with scrape completion
-    if (captureDebug) {
-      liveDebug.completedAgents.push({
-        name: 'Website Scraper',
-        duration: scrapeEnd - scrapeStart,
-        result: `Scraped ${domain}`,
-        details: [scrapedWebsite.title || 'No title'],
-      });
-      liveDebug.currentAgent = 'Company Profiler';
-    }
+    // Always update live debug with scrape completion (for insight teasers)
+    liveDebug.completedAgents.push({
+      name: 'Website Scraper',
+      duration: scrapeEnd - scrapeStart,
+      result: `Scraped ${domain}`,
+      details: [scrapedWebsite.title || 'No title'],
+    });
+    liveDebug.currentAgent = 'Company Profiler';
 
     // Step 2: Analyze company and ICP
-    updateProgress(slug, {
+    updateProgress(domain, slug, {
       status: 'analyzing_company',
       message: 'Understanding your business and ideal customers...',
       progress: 30,
-      liveDebug: captureDebug ? liveDebug : undefined,
+      liveDebug, // Always pass liveDebug for insight teasers
     });
 
-    // Create progress callback for live updates
-    const analysisProgressCallback: AnalysisProgressCallback | undefined = captureDebug
-      ? (update) => {
-          liveDebug.currentAgent = update.currentAgent;
-          
-          if (update.completedAgent) {
-            liveDebug.completedAgents.push(update.completedAgent);
-          }
-          if (update.allPersonas) {
-            liveDebug.allPersonas = update.allPersonas;
-          }
-          if (update.selectedPersona) {
-            liveDebug.selectedPersona = update.selectedPersona;
-          }
-          if (update.rankings) {
-            liveDebug.rankings = update.rankings;
-          }
-          if (update.finalFilters) {
-            liveDebug.finalFilters = update.finalFilters;
-          }
-          if (update.salesNavUrl) {
-            liveDebug.salesNavUrl = update.salesNavUrl;
-          }
-          
-          // Update progress store with new live debug
-          updateProgress(slug, {
-            status: 'analyzing_company',
-            message: `Running ${update.currentAgent}...`,
-            progress: 30 + (liveDebug.completedAgents.length * 8),
-            liveDebug,
+    // Create progress callback for live updates (always enabled for insight teasers)
+    const analysisProgressCallback: AnalysisProgressCallback = (update) => {
+      liveDebug.currentAgent = update.currentAgent;
+      
+      // Always capture basic agent results for insight teasers
+      if (update.completedAgent) {
+        // For debug mode, include full prompt/response; otherwise just basics
+        if (captureDebug) {
+          liveDebug.completedAgents.push(update.completedAgent);
+        } else {
+          // Strip sensitive prompt/response data for non-debug mode
+          liveDebug.completedAgents.push({
+            name: update.completedAgent.name,
+            duration: update.completedAgent.duration,
+            result: update.completedAgent.result,
+            details: update.completedAgent.details,
+            output: update.completedAgent.output,
           });
         }
-      : undefined;
+      }
+      if (update.allPersonas) {
+        liveDebug.allPersonas = update.allPersonas;
+      }
+      if (update.selectedPersona) {
+        liveDebug.selectedPersona = update.selectedPersona;
+      }
+      if (update.rankings) {
+        liveDebug.rankings = update.rankings;
+      }
+      if (update.finalFilters) {
+        liveDebug.finalFilters = update.finalFilters;
+      }
+      if (update.salesNavUrl) {
+        liveDebug.salesNavUrl = update.salesNavUrl;
+      }
+      
+      // Update progress store with new live debug
+      updateProgress(domain, slug, {
+        status: 'analyzing_company',
+        message: `Running ${update.currentAgent}...`,
+        progress: 30 + (liveDebug.completedAgents.length * 8),
+        liveDebug,
+      });
+    };
 
     const analysis = await analyzeCompanyAndICP(
       scrapedWebsite, 
       domain, 
       undefined, 
       captureDebug,
-      analysisProgressCallback
+      analysisProgressCallback // Always pass callback for insight teasers
     );
     const finalICP = icpSettings || analysis.suggestedICP;
     
@@ -242,7 +257,7 @@ export async function generateCampaign(
     
     if (leadSearchPromise) {
       // Wait for the early lead search to complete
-      updateProgress(slug, {
+      updateProgress(domain, slug, {
         status: 'waiting_for_leads',
         message: 'Waiting for lead data...',
         progress: 50,
@@ -256,40 +271,38 @@ export async function generateCampaign(
         console.log('[CampaignGenerator] Early search returned no leads, using mock data');
         leads = generateMockLeads(finalICP);
       }
-    } else if (hasApify) {
+    } else if (hasLeadSource) {
       // Start lead search now (we didn't have ICP settings earlier)
-      if (captureDebug) {
-        liveDebug.currentAgent = 'Lead Finder';
-      }
-      updateProgress(slug, {
+      liveDebug.currentAgent = 'Lead Finder';
+      updateProgress(domain, slug, {
         status: 'finding_leads',
-        message: 'Searching for qualified leads...',
+        message: `Searching for qualified leads with ${useArk ? 'AI Ark' : 'LinkedIn Sales Navigator'}...`,
         progress: 60,
-        liveDebug: captureDebug ? liveDebug : undefined,
+        liveDebug,
       });
       
       const searchUrl = salesNavigatorUrl || buildSalesNavUrl(finalICP);
       const leadSearchStart = Date.now();
       
       try {
-        console.log('[CampaignGenerator] Using Sales Navigator URL:', searchUrl);
-        const searchResult = await initializeLeadSearch(searchUrl, 25);
+        console.log(`[CampaignGenerator] Using ${useArk ? 'AI Ark' : 'Apify'} for lead search`);
         
-        updateProgress(slug, {
+        updateProgress(domain, slug, {
           status: 'waiting_for_leads',
-          message: 'Waiting for lead data (this may take a few minutes)...',
+          message: useArk ? 'Searching AI Ark database...' : 'Waiting for lead data (this may take a few minutes)...',
           progress: 50,
         });
 
-        const results = await waitForLeadResults(searchResult.requestId);
+        // findLeads() handles both Apify and AI Ark based on LEAD_SOURCE env
+        const results = await findLeads(finalICP, salesNavigatorUrl, 5);
         leads = results.leads || [];
         
         // Capture lead search debug data
         if (captureDebug && debugData) {
           const leadSearchEnd = Date.now();
           debugData.leadSearch = {
-            salesNavUrl: searchUrl,
-            requestId: searchResult.requestId,
+            salesNavUrl: useArk ? 'AI Ark (no URL)' : searchUrl,
+            requestId: results.requestId,
             startedAt: new Date(leadSearchStart).toISOString(),
             completedAt: new Date(leadSearchEnd).toISOString(),
             durationMs: leadSearchEnd - leadSearchStart,
@@ -297,14 +310,14 @@ export async function generateCampaign(
             status: leads.length > 0 ? 'completed' : 'timeout',
           };
         }
-      } catch (apifyError) {
-        console.error('[CampaignGenerator] Apify error, falling back to mock leads:', apifyError);
+      } catch (leadSearchError) {
+        console.error('[CampaignGenerator] Lead search error, falling back to mock leads:', leadSearchError);
         leads = generateMockLeads(finalICP);
         
         // Capture error in debug data
         if (captureDebug && debugData) {
           debugData.leadSearch = {
-            salesNavUrl: searchUrl,
+            salesNavUrl: useArk ? 'AI Ark (no URL)' : searchUrl,
             requestId: 'error',
             startedAt: new Date(leadSearchStart).toISOString(),
             leadsFound: 0,
@@ -313,26 +326,25 @@ export async function generateCampaign(
         }
       }
     } else {
-      // No Apify configured - use mock leads
-      console.log('[CampaignGenerator] Apify not configured, using demo leads');
+      // No lead source configured - use mock leads
+      console.log('[CampaignGenerator] No lead source configured (APIFY_API_TOKEN or AI_ARK_TOKEN), using demo leads');
       leads = generateMockLeads(finalICP);
     }
 
     // Step 4: Write personalized emails (parallel)
-    if (captureDebug) {
-      liveDebug.currentAgent = 'Email Writer';
-      liveDebug.completedAgents.push({
-        name: 'Lead Finder',
-        duration: 0, // Will be updated by lead search logic
-        result: `Found ${leads.length} leads`,
-        details: leads.slice(0, 3).map(l => l.full_name),
-      });
-    }
-    updateProgress(slug, {
+    // Always update liveDebug for insight teasers
+    liveDebug.currentAgent = 'Email Writer';
+    liveDebug.completedAgents.push({
+      name: 'Lead Finder',
+      duration: 0, // Timing handled elsewhere
+      result: `Found ${leads.length} leads`,
+      details: leads.slice(0, 3).map(l => l.full_name),
+    });
+    updateProgress(domain, slug, {
       status: 'writing_emails',
       message: 'Crafting personalized emails in parallel...',
       progress: 80,
-      liveDebug: captureDebug ? liveDebug : undefined,
+      liveDebug,
     });
 
     const emailGenStart = Date.now();
@@ -368,7 +380,7 @@ export async function generateCampaign(
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
     console.log(`[CampaignGenerator] Campaign completed in ${elapsed}s`);
 
-    updateProgress(slug, {
+    updateProgress(domain, slug, {
       status: 'complete',
       message: `Campaign ready! (${elapsed}s)`,
       progress: 100,
@@ -503,7 +515,7 @@ export async function generateCampaign(
       pipelineDebug: pipelineDebug as any,
     };
 
-    updateProgress(slug, {
+    updateProgress(domain, slug, {
       status: 'complete',
       message: `Campaign ready! (${elapsed}s)`,
       progress: 100,
@@ -515,7 +527,7 @@ export async function generateCampaign(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     
-    updateProgress(slug, {
+    updateProgress(domain, slug, {
       status: 'error',
       message: errorMessage,
       progress: 0,

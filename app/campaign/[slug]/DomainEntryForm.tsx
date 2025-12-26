@@ -6,8 +6,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { CampaignData } from '@/lib/types';
 import { CampaignDebugData } from '@/lib/types/debug';
 import { LiveDebugData } from '@/lib/services/campaignGenerator';
-import { domainToSlug } from '@/lib/utils/slugify';
 import LiveDebugPanel from './LiveDebugPanel';
+import InsightTeaser from './InsightTeaser';
 
 interface Props {
   slug: string;
@@ -15,14 +15,23 @@ interface Props {
   onCampaignGenerated: (campaign: CampaignData, debugData?: CampaignDebugData, liveDebug?: LiveDebugData) => void;
 }
 
+// Map server status to step index for visual indicators
+const statusToStepIndex: Record<string, number> = {
+  'scraping_website': 0,
+  'analyzing_company': 1,
+  'finding_leads': 2,
+  'waiting_for_leads': 3,
+  'writing_emails': 4,
+  'complete': 5,
+};
+
 const loadingSteps = [
-  { text: 'Analyzing your domain...', duration: 3000 },
-  { text: 'Identifying your ideal customer profile...', duration: 4000 },
-  { text: 'Searching for qualified leads...', duration: 5000 },
-  { text: 'Enriching lead data with LinkedIn...', duration: 4000 },
-  { text: 'Crafting personalized emails...', duration: 3000 },
-  { text: 'Verifying email deliverability...', duration: 2000 },
-  { text: 'Finalizing your campaign...', duration: 2000 },
+  { text: 'Analyzing your website...', status: 'scraping_website' },
+  { text: 'Understanding your ideal customer profile...', status: 'analyzing_company' },
+  { text: 'Searching for qualified leads...', status: 'finding_leads' },
+  { text: 'Retrieving lead data from LinkedIn...', status: 'waiting_for_leads' },
+  { text: 'Crafting personalized emails...', status: 'writing_emails' },
+  { text: 'Finalizing your campaign...', status: 'complete' },
 ];
 
 export default function DomainEntryForm({ slug, debugMode = false, onCampaignGenerated }: Props) {
@@ -38,13 +47,14 @@ export default function DomainEntryForm({ slug, debugMode = false, onCampaignGen
   const [liveDebug, setLiveDebug] = useState<LiveDebugData | null>(null);
   const [serverStatus, setServerStatus] = useState<string>('');
   const [serverProgress, setServerProgress] = useState<number>(0);
-  const [campaignSlug, setCampaignSlug] = useState<string>('');
+  const [serverStatusType, setServerStatusType] = useState<string>('');
+  const [pollingDomain, setPollingDomain] = useState<string>('');
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const hasAutoSubmitted = useRef(false);
 
-  // Poll for progress updates during loading
+  // Poll for progress updates during loading (using domain, not slug)
   useEffect(() => {
-    if (!isLoading || !campaignSlug) {
+    if (!isLoading || !pollingDomain) {
       if (pollingRef.current) {
         clearInterval(pollingRef.current);
         pollingRef.current = null;
@@ -54,12 +64,13 @@ export default function DomainEntryForm({ slug, debugMode = false, onCampaignGen
 
     const pollProgress = async () => {
       try {
-        const response = await fetch(`/api/generate-campaign?slug=${campaignSlug}`);
+        const response = await fetch(`/api/generate-campaign?domain=${encodeURIComponent(pollingDomain)}`);
         if (response.ok) {
           const data = await response.json();
           if (data.success) {
             setServerStatus(data.message || '');
             setServerProgress(data.progress || 0);
+            setServerStatusType(data.status || '');
             if (data.liveDebug) {
               setLiveDebug(data.liveDebug);
             }
@@ -70,8 +81,8 @@ export default function DomainEntryForm({ slug, debugMode = false, onCampaignGen
       }
     };
 
-    // Start polling every 1.5 seconds
-    pollingRef.current = setInterval(pollProgress, 1500);
+    // Start polling every 800ms for more responsive updates
+    pollingRef.current = setInterval(pollProgress, 800);
     // Initial poll
     pollProgress();
 
@@ -81,38 +92,53 @@ export default function DomainEntryForm({ slug, debugMode = false, onCampaignGen
         pollingRef.current = null;
       }
     };
-  }, [isLoading, campaignSlug]);
+  }, [isLoading, pollingDomain]);
 
-  // Animated progress based on server updates
+  // Animated progress based on actual server progress
+  const [displayProgress, setDisplayProgress] = useState(0);
+  const targetProgressRef = useRef(0);
+  
+  // Smoothly animate progress bar to match server progress
   useEffect(() => {
-    if (!isLoading) return;
+    if (!isLoading) {
+      setDisplayProgress(0);
+      targetProgressRef.current = 0;
+      return;
+    }
 
-    let stepIndex = 0;
-    let elapsed = 0;
-    const totalDuration = loadingSteps.reduce((acc, step) => acc + step.duration, 0);
+    // Update target when server progress changes
+    targetProgressRef.current = serverProgress;
 
     const interval = setInterval(() => {
-      elapsed += 100;
-      // Use server progress if available and higher, otherwise use timer
-      const timerProgress = (elapsed / totalDuration) * 100;
-      const effectiveProgress = serverProgress > 0 ? Math.max(timerProgress, serverProgress) : timerProgress;
-      setProgress(Math.min(effectiveProgress, 99)); // Cap at 99% until complete
-
-      let cumulativeDuration = 0;
-      for (let i = 0; i < loadingSteps.length; i++) {
-        cumulativeDuration += loadingSteps[i].duration;
-        if (elapsed < cumulativeDuration) {
-          if (stepIndex !== i) {
-            stepIndex = i;
-            setCurrentStep(i);
-          }
-          break;
+      setDisplayProgress(prev => {
+        const target = targetProgressRef.current;
+        if (prev < target) {
+          // Smoothly catch up to server progress
+          const diff = target - prev;
+          const increment = Math.max(0.5, diff * 0.1);
+          return Math.min(prev + increment, target);
         }
-      }
-    }, 100);
+        return prev;
+      });
+    }, 50);
 
     return () => clearInterval(interval);
   }, [isLoading, serverProgress]);
+
+  // Update progress state for display
+  useEffect(() => {
+    setProgress(Math.min(displayProgress, 99)); // Cap at 99% until complete
+  }, [displayProgress]);
+
+  // Update step index based on server status type
+  useEffect(() => {
+    if (serverStatusType) {
+      const stepIdx = statusToStepIndex[serverStatusType];
+      if (stepIdx !== undefined && stepIdx !== currentStep) {
+        setCurrentStep(stepIdx);
+      }
+    }
+  }, [serverStatusType, currentStep]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -136,27 +162,17 @@ export default function DomainEntryForm({ slug, debugMode = false, onCampaignGen
     setCurrentStep(0);
     setProgress(0);
     
-    // Set the campaign slug for polling (derived the same way the API does)
-    const generatedSlug = domainToSlug(cleanDomain);
-    setCampaignSlug(generatedSlug);
+    // Set the domain for polling (progress is tracked by domain, not slug)
+    setPollingDomain(cleanDomain);
 
     try {
-      // Simulate the 2-3 minute processing time
-      const totalDuration = loadingSteps.reduce((acc, step) => acc + step.duration, 0);
-      
       // Start the API call with debug mode if enabled
-      // Note: slug is optional - API will generate from domain
-      const apiPromise = fetch('/api/generate-campaign', {
+      // API will generate unique incremental slug (e.g., dynamicmockups-2)
+      const response = await fetch('/api/generate-campaign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ domain: cleanDomain, debug: debugMode }),
       });
-
-      // Wait for both the minimum time and the API call
-      const [response] = await Promise.all([
-        apiPromise,
-        new Promise(resolve => setTimeout(resolve, totalDuration))
-      ]);
 
       if (!response.ok) {
         throw new Error('Failed to generate campaign');
@@ -198,83 +214,95 @@ export default function DomainEntryForm({ slug, debugMode = false, onCampaignGen
         <div className="fixed top-0 left-1/4 w-[500px] h-[500px] bg-sky-200/40 rounded-full blur-[100px] pointer-events-none mix-blend-multiply" />
         <div className="fixed bottom-0 right-1/4 w-[600px] h-[600px] bg-cyan-200/40 rounded-full blur-[100px] pointer-events-none mix-blend-multiply" />
 
-        <div className={`relative z-10 ${debugMode ? 'max-w-3xl' : 'max-w-lg'} w-full`}>
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 text-center"
-          >
-            {/* Logo */}
-            <img src="/coldmessage_logo.png" alt="ColdMessage" className="h-20 w-auto mx-auto mb-8 drop-shadow-lg" />
+        {/* Main Layout: Loader + Insight Teasers */}
+        <div className="relative z-10 w-full max-w-5xl flex flex-col lg:flex-row items-center lg:items-start justify-center gap-6 lg:gap-8">
+          
+          {/* Main Loader Card */}
+          <div className={`${debugMode ? 'max-w-xl' : 'max-w-lg'} w-full`}>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 text-center"
+            >
+              {/* Logo */}
+              <img src="/coldmessage_logo.png" alt="ColdMessage" className="h-20 w-auto mx-auto mb-8 drop-shadow-lg" />
 
-            {/* Animated Loader */}
-            <div className="relative w-24 h-24 mx-auto mb-8">
-              <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="45"
-                  fill="none"
-                  stroke="#e2e8f0"
-                  strokeWidth="8"
-                />
-                <motion.circle
-                  cx="50"
-                  cy="50"
-                  r="45"
-                  fill="none"
-                  stroke="url(#gradient)"
-                  strokeWidth="8"
-                  strokeLinecap="round"
-                  strokeDasharray={283}
-                  strokeDashoffset={283 - (progress / 100) * 283}
-                />
-                <defs>
-                  <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#0ea5e9" />
-                    <stop offset="100%" stopColor="#06b6d4" />
-                  </linearGradient>
-                </defs>
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-xl font-bold text-slate-700">{Math.round(progress)}%</span>
+              {/* Animated Loader */}
+              <div className="relative w-24 h-24 mx-auto mb-8">
+                <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                  <circle
+                    cx="50"
+                    cy="50"
+                    r="45"
+                    fill="none"
+                    stroke="#e2e8f0"
+                    strokeWidth="8"
+                  />
+                  <motion.circle
+                    cx="50"
+                    cy="50"
+                    r="45"
+                    fill="none"
+                    stroke="url(#gradient)"
+                    strokeWidth="8"
+                    strokeLinecap="round"
+                    strokeDasharray={283}
+                    strokeDashoffset={283 - (progress / 100) * 283}
+                  />
+                  <defs>
+                    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#0ea5e9" />
+                      <stop offset="100%" stopColor="#06b6d4" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-xl font-bold text-slate-700">{Math.round(progress)}%</span>
+                </div>
               </div>
+
+              {/* Current Step - Use server status if available */}
+              <AnimatePresence mode="wait">
+                <motion.p
+                  key={serverStatus || currentStep}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="text-lg font-medium text-slate-700 mb-4"
+                >
+                  {serverStatus || loadingSteps[currentStep]?.text}
+                </motion.p>
+              </AnimatePresence>
+
+              {/* Step Progress */}
+              <div className="flex justify-center gap-2 mb-8">
+                {loadingSteps.map((_, i) => (
+                  <div
+                    key={i}
+                    className={`w-2 h-2 rounded-full transition-colors duration-300 ${
+                      i <= currentStep ? 'bg-sky-500' : 'bg-slate-200'
+                    }`}
+                  />
+                ))}
+              </div>
+
+              {/* Estimated Time */}
+              <p className="text-sm text-slate-400">
+                Estimated time remaining: ~{Math.max(0, Math.ceil((100 - progress) / 100 * 2.5))} minutes
+              </p>
+            </motion.div>
+
+            {/* Live Debug Panel - Show during loading in debug mode */}
+            {debugMode && (
+              <LiveDebugPanel liveDebug={liveDebug} isLoading={isLoading} />
+            )}
+          </div>
+
+          {/* Insight Teaser Panels - appear on the right as data comes in */}
+          {liveDebug && (
+            <div className="w-full lg:w-[320px] flex-shrink-0">
+              <InsightTeaser liveDebug={liveDebug} />
             </div>
-
-            {/* Current Step - Use server status if available */}
-            <AnimatePresence mode="wait">
-              <motion.p
-                key={serverStatus || currentStep}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="text-lg font-medium text-slate-700 mb-4"
-              >
-                {serverStatus || loadingSteps[currentStep]?.text}
-              </motion.p>
-            </AnimatePresence>
-
-            {/* Step Progress */}
-            <div className="flex justify-center gap-2 mb-8">
-              {loadingSteps.map((_, i) => (
-                <div
-                  key={i}
-                  className={`w-2 h-2 rounded-full transition-colors duration-300 ${
-                    i <= currentStep ? 'bg-sky-500' : 'bg-slate-200'
-                  }`}
-                />
-              ))}
-            </div>
-
-            {/* Estimated Time */}
-            <p className="text-sm text-slate-400">
-              Estimated time remaining: ~{Math.max(0, Math.ceil((100 - progress) / 100 * 2.5))} minutes
-            </p>
-          </motion.div>
-
-          {/* Live Debug Panel - Show during loading in debug mode */}
-          {debugMode && (
-            <LiveDebugPanel liveDebug={liveDebug} isLoading={isLoading} />
           )}
         </div>
       </div>

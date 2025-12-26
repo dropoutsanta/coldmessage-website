@@ -6,16 +6,63 @@ import { domainToSlug } from '@/lib/utils/slugify';
 
 interface GenerateRequest {
   domain: string;
-  slug?: string; // Optional - will be generated from domain if not provided
   icpSettings?: ICPSettings;
   salesNavigatorUrl?: string;
   debug?: boolean;
 }
 
+/**
+ * Find the next available slug for a domain.
+ * If 'dynamicmockups' exists, returns 'dynamicmockups-2', then 'dynamicmockups-3', etc.
+ */
+async function getNextAvailableSlug(baseSlug: string): Promise<string> {
+  if (!supabaseAdmin) {
+    return baseSlug; // Demo mode - just use base slug
+  }
+
+  // Check if base slug exists
+  const { data: baseExists } = await supabaseAdmin
+    .from('campaigns')
+    .select('slug')
+    .eq('slug', baseSlug)
+    .single();
+
+  if (!baseExists) {
+    return baseSlug; // Base slug is available
+  }
+
+  // Find all existing slugs that match the pattern: baseSlug or baseSlug-N
+  const { data: existingSlugs } = await supabaseAdmin
+    .from('campaigns')
+    .select('slug')
+    .or(`slug.eq.${baseSlug},slug.like.${baseSlug}-%`);
+
+  if (!existingSlugs || existingSlugs.length === 0) {
+    return baseSlug;
+  }
+
+  // Extract the highest number suffix
+  let maxNumber = 1; // Base slug counts as "1"
+  for (const row of existingSlugs) {
+    if (row.slug === baseSlug) {
+      continue; // Base slug, already counted as 1
+    }
+    const match = row.slug.match(new RegExp(`^${baseSlug}-(\\d+)$`));
+    if (match) {
+      const num = parseInt(match[1], 10);
+      if (num > maxNumber) {
+        maxNumber = num;
+      }
+    }
+  }
+
+  return `${baseSlug}-${maxNumber + 1}`;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body: GenerateRequest = await request.json();
-    const { domain, slug: providedSlug, icpSettings, salesNavigatorUrl, debug = false } = body;
+    const { domain, icpSettings, salesNavigatorUrl, debug = false } = body;
 
     if (!domain) {
       return NextResponse.json(
@@ -24,8 +71,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate slug from domain
-    const slug = providedSlug || domainToSlug(domain);
+    // Always generate unique incremental slug (dynamicmockups, dynamicmockups-2, etc.)
+    // Progress is tracked by domain, so frontend can poll without knowing the final slug
+    const baseSlug = domainToSlug(domain);
+    const slug = await getNextAvailableSlug(baseSlug);
 
     console.log(`[API] Starting campaign generation for ${domain} (slug: ${slug})${debug ? ' [DEBUG MODE]' : ''}`);
 
@@ -73,40 +122,19 @@ export async function POST(request: NextRequest) {
         pipeline_debug: campaignData.pipelineDebug || null,
       };
 
-      // Upsert to Supabase (insert or update based on slug)
+      // Insert new campaign to Supabase (slug is guaranteed unique)
       if (supabaseAdmin) {
-        const { data: existing } = await supabaseAdmin
+        const { data, error } = await supabaseAdmin
           .from('campaigns')
-          .select('id')
-          .eq('slug', slug)
+          .insert(campaign)
+          .select()
           .single();
 
-        if (existing) {
-          const { data, error } = await supabaseAdmin
-            .from('campaigns')
-            .update(campaign)
-            .eq('slug', slug)
-            .select()
-            .single();
-
-          if (error) {
-            console.error('[API] Failed to update campaign:', error);
-            return NextResponse.json({ error: 'Failed to update campaign' }, { status: 500 });
-          }
-          return NextResponse.json({ success: true, campaign: data, slug, debugData });
-        } else {
-          const { data, error } = await supabaseAdmin
-            .from('campaigns')
-            .insert(campaign)
-            .select()
-            .single();
-
-          if (error) {
-            console.error('[API] Failed to create campaign:', error);
-            return NextResponse.json({ error: 'Failed to create campaign' }, { status: 500 });
-          }
-          return NextResponse.json({ success: true, campaign: data, slug, debugData });
+        if (error) {
+          console.error('[API] Failed to create campaign:', error);
+          return NextResponse.json({ error: 'Failed to create campaign' }, { status: 500 });
         }
+        return NextResponse.json({ success: true, campaign: data, slug, debugData });
       }
 
       // Demo mode - return without saving
@@ -173,36 +201,20 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      const { data: existing } = await supabaseAdmin
+      // Get next available slug for fallback too
+      const fallbackSlug = await getNextAvailableSlug(slug);
+      const fallbackCampaign = { ...campaignData, slug: fallbackSlug };
+
+      const { data, error } = await supabaseAdmin
         .from('campaigns')
-        .select('id')
-        .eq('slug', slug)
+        .insert(fallbackCampaign)
+        .select()
         .single();
 
-      if (existing) {
-        const { data, error } = await supabaseAdmin
-          .from('campaigns')
-          .update(campaignData)
-          .eq('slug', slug)
-          .select()
-          .single();
-
-        if (error) {
-          return NextResponse.json({ error: 'Failed to update campaign' }, { status: 500 });
-        }
-        return NextResponse.json({ success: true, campaign: data, slug });
-      } else {
-        const { data, error } = await supabaseAdmin
-          .from('campaigns')
-          .insert(campaignData)
-          .select()
-          .single();
-
-        if (error) {
-          return NextResponse.json({ error: 'Failed to create campaign' }, { status: 500 });
-        }
-        return NextResponse.json({ success: true, campaign: data, slug });
+      if (error) {
+        return NextResponse.json({ error: 'Failed to create campaign' }, { status: 500 });
       }
+      return NextResponse.json({ success: true, campaign: data, slug: fallbackSlug });
     }
   } catch (error) {
     console.error('Error in generate-campaign:', error);
@@ -212,20 +224,21 @@ export async function POST(request: NextRequest) {
 
 /**
  * GET endpoint to check campaign generation progress
+ * Uses domain (not slug) because the unique slug is generated server-side
  */
 export async function GET(request: NextRequest) {
-  const slug = request.nextUrl.searchParams.get('slug');
+  const domain = request.nextUrl.searchParams.get('domain');
   
-  if (!slug) {
-    return NextResponse.json({ error: 'Slug is required' }, { status: 400 });
+  if (!domain) {
+    return NextResponse.json({ error: 'Domain is required' }, { status: 400 });
   }
 
-  const progress = getCampaignProgress(slug);
+  const progress = getCampaignProgress(domain);
   
   if (!progress) {
     return NextResponse.json({
       success: false,
-      error: 'No campaign generation in progress for this slug',
+      error: 'No campaign generation in progress for this domain',
     }, { status: 404 });
   }
 

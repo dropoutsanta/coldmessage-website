@@ -2,6 +2,9 @@ import { supabase, isDemoMode, transformSupabaseCampaign, SupabaseCampaignRow } 
 import { CampaignData } from '@/lib/types';
 import CampaignPage from './CampaignPage';
 
+// Always fetch fresh data - don't cache this page
+export const dynamic = 'force-dynamic';
+
 interface Props {
   params: Promise<{ slug: string }>;
 }

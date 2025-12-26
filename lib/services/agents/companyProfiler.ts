@@ -151,7 +151,7 @@ Be factual. If something isn't clear from the website, say "unknown" or leave th
 
   const message = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514',
-    max_tokens: 1024,
+    max_tokens: 200000,
     messages: [
       {
         role: 'user',

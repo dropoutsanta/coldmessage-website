@@ -200,7 +200,7 @@ Use the EXACT IDs from the reference above. If an industry or location isn't lis
 
   const message = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514',
-    max_tokens: 1024,
+    max_tokens: 200000,
     messages: [
       {
         role: 'user',

@@ -1,6 +1,7 @@
 import { ApifyClient } from 'apify-client';
 import { LinkedInLead, ApifySearchResult, ICPSettings } from '../types';
 import { buildSalesNavigatorUrl } from './salesNavUrlBuilder';
+import { searchPeopleWithArk, shouldUseArk, isArkConfigured } from './arkLeadFinder';
 
 const apifyClient = new ApifyClient({
   token: process.env.APIFY_API_TOKEN,
@@ -14,6 +15,71 @@ export interface LeadSearchResult {
   leads?: LinkedInLead[];
   totalCount?: number;
   message?: string;
+}
+
+/**
+ * Unified lead finder that dispatches to the appropriate source based on LEAD_SOURCE env variable
+ * 
+ * LEAD_SOURCE=0 or undefined: Use Apify/LinkedIn Sales Navigator (default)
+ * LEAD_SOURCE=1: Use AI Ark People Search API
+ * 
+ * @param icpSettings - ICP filter settings
+ * @param salesNavigatorUrl - Optional Sales Navigator URL (only used for Apify)
+ * @param limit - Maximum number of leads to return
+ */
+export async function findLeads(
+  icpSettings: ICPSettings,
+  salesNavigatorUrl?: string,
+  limit: number = 25
+): Promise<LeadSearchResult> {
+  // Check if we should use AI Ark
+  if (shouldUseArk()) {
+    console.log('[LeadFinder] Using AI Ark as lead source (LEAD_SOURCE=1)');
+    
+    if (!isArkConfigured()) {
+      console.error('[LeadFinder] AI_ARK_TOKEN not configured but LEAD_SOURCE=1');
+      return {
+        requestId: 'config-error',
+        status: 'error',
+        message: 'AI Ark selected but AI_ARK_TOKEN not configured',
+        leads: [],
+      };
+    }
+    
+    // AI Ark doesn't support Sales Navigator URLs, uses ICP directly
+    if (salesNavigatorUrl) {
+      console.log('[LeadFinder] Note: Sales Navigator URL ignored when using AI Ark');
+    }
+    
+    // AI Ark returns results synchronously - no polling needed!
+    return searchPeopleWithArk(icpSettings, limit);
+  }
+  
+  // Default: Use Apify/LinkedIn Sales Navigator
+  console.log('[LeadFinder] Using Apify as lead source (LEAD_SOURCE=0 or undefined)');
+  
+  // If a Sales Navigator URL is provided, use it directly
+  if (salesNavigatorUrl) {
+    const result = await initializeLeadSearch(salesNavigatorUrl, limit);
+    
+    // If initiated, wait for results
+    if (result.status === 'initiated' && result.requestId) {
+      return waitForLeadResults(result.requestId);
+    }
+    
+    return result;
+  }
+  
+  // Otherwise, build URL from ICP settings
+  const url = buildSalesNavigatorUrl(icpSettings);
+  const result = await initializeLeadSearch(url, limit);
+  
+  // If initiated, wait for results
+  if (result.status === 'initiated' && result.requestId) {
+    return waitForLeadResults(result.requestId);
+  }
+  
+  return result;
 }
 
 /**
