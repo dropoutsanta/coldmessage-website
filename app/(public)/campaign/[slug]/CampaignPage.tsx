@@ -1,12 +1,14 @@
 'use client';
 
 import { CampaignData, QualifiedLead } from '@/lib/types';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSearchParams } from 'next/navigation';
 import WorldMap from './WorldMap';
 import DomainEntryForm from './DomainEntryForm';
 import LiveDebugPanel from './LiveDebugPanel';
+import CheckoutSheet from './CheckoutSheet';
+import PaymentSuccessModal from './PaymentSuccessModal';
 import { CampaignDebugData } from '@/lib/types/debug';
 import { LiveDebugData, LiveAgentResult } from '@/lib/services/campaignGenerator';
 
@@ -107,9 +109,57 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
   const [debugData, setDebugData] = useState<CampaignDebugData | null>(null);
   const [liveDebug, setLiveDebug] = useState<LiveDebugData | null>(null);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [showCheckout, setShowCheckout] = useState(false);
+  const [showPaymentSuccess, setShowPaymentSuccess] = useState(false);
+  const [customerEmail, setCustomerEmail] = useState<string | null>(null);
+  const [isCompletingCheckout, setIsCompletingCheckout] = useState(false);
   
   const searchParams = useSearchParams();
   const isDebugMode = searchParams.get('debug') === 'true';
+  const sessionId = searchParams.get('session_id');
+
+  // Handle Stripe redirect with session_id
+  useEffect(() => {
+    if (sessionId && !showPaymentSuccess && !isCompletingCheckout) {
+      setIsCompletingCheckout(true);
+      
+      // Complete the checkout
+      fetch('/api/checkout/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId,
+          campaignSlug: slug,
+        }),
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.autoLoginUrl) {
+            // Redirect to auto-login URL - this will log them in and redirect to dashboard
+            window.location.href = data.autoLoginUrl;
+            return;
+          }
+          
+          // Fallback: show success modal if auto-login failed
+          if (data.email) {
+            setCustomerEmail(data.email);
+          }
+          setShowPaymentSuccess(true);
+          setIsCompletingCheckout(false);
+          
+          // Clean up URL (remove session_id param)
+          const url = new URL(window.location.href);
+          url.searchParams.delete('session_id');
+          window.history.replaceState({}, '', url.toString());
+        })
+        .catch(err => {
+          console.error('Error completing checkout:', err);
+          // Still show success - payment went through
+          setShowPaymentSuccess(true);
+          setIsCompletingCheckout(false);
+        });
+    }
+  }, [sessionId, slug, showPaymentSuccess, isCompletingCheckout]);
 
   const handleRegenerateEmails = async () => {
     if (!campaign || isRegenerating) return;
@@ -533,7 +583,10 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
                   Reach <strong>{campaign.priceTier1Emails} verified prospects</strong> with personalized messages.
                 </p>
                 
-                <button className="w-full bg-slate-900 text-white text-lg font-bold py-4 rounded-xl shadow-lg hover:shadow-xl hover:bg-slate-800 transform transition-all active:scale-[0.98] flex items-center justify-center gap-2">
+                <button 
+                  onClick={() => setShowCheckout(true)}
+                  className="w-full bg-slate-900 text-white text-lg font-bold py-4 rounded-xl shadow-lg hover:shadow-xl hover:bg-slate-800 transform transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                >
                   <span>Launch Campaign</span>
                   <span>🚀</span>
                 </button>
@@ -576,6 +629,48 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
             <p className="text-slate-500 text-xs mt-2">
               To see the full agent pipeline, regenerate the campaign with debug mode enabled.
             </p>
+          </div>
+        </div>
+      )}
+      
+      {/* Checkout Sheet */}
+      <CheckoutSheet
+        isOpen={showCheckout}
+        onClose={() => setShowCheckout(false)}
+        campaign={campaign}
+        tier="tier1"
+      />
+      
+      {/* Payment Success Modal (shown after Stripe redirect) */}
+      <PaymentSuccessModal
+        isOpen={showPaymentSuccess}
+        onClose={() => setShowPaymentSuccess(false)}
+        email={customerEmail}
+        campaignSlug={slug}
+      />
+      
+      {/* Loading overlay while completing checkout */}
+      {isCompletingCheckout && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="bg-white rounded-2xl p-8 text-center max-w-sm">
+            <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg
+                className="w-8 h-8 text-emerald-500"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M5 13l4 4L19 7"
+                />
+              </svg>
+            </div>
+            <h3 className="text-xl font-bold text-slate-900 mb-2">Payment Successful!</h3>
+            <p className="text-slate-500 mb-4">Setting up your account...</p>
+            <div className="w-8 h-8 border-2 border-slate-200 border-t-slate-600 rounded-full animate-spin mx-auto" />
           </div>
         </div>
       )}

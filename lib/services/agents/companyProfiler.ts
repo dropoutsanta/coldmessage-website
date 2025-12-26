@@ -153,7 +153,7 @@ Be factual. If something isn't clear from the website, say "unknown" or leave th
   let responseText = '';
   const stream = anthropic.messages.stream({
     model: 'claude-sonnet-4-20250514',
-    max_tokens: 100000,
+    max_tokens: 64000,
     messages: [
       {
         role: 'user',

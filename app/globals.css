@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Titan+One&display=swap');
 @import "tailwindcss";
 
 :root {
@@ -134,5 +135,62 @@ input:focus-visible {
   --frost-bg-opacity: 0.6;
   --frost-shadow: 0 8px 32px 0 rgba(6, 182, 212, 0.15);
   border-color: rgba(186, 230, 253, 0.5);
+}
+
+/* Custom Animations */
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite linear;
+}
+
+@keyframes gradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.animate-gradient {
+  animation: gradient 3s ease infinite;
+}
+
+/* Ice Text 3D Effect */
+.ice-text-3d {
+  font-family: 'Titan One', sans-serif;
+  position: relative;
+  z-index: 10;
+  color: #e0f2fe; /* light blue base */
+  text-shadow: 
+    /* Top highlight (snow cap) */
+    0 -2px 0 #ffffff,
+    /* 3D Extrusion Layer 1 (lighter cyan) */
+    0 1px 0 #cffafe,
+    0 2px 0 #a5f3fc,
+    0 3px 0 #67e8f9,
+    0 4px 0 #22d3ee,
+    /* 3D Extrusion Layer 2 (deeper cyan) */
+    0 5px 0 #06b6d4,
+    0 6px 0 #0891b2,
+    0 7px 0 #0e7490,
+    0 8px 0 #155e75,
+    /* Deep shadow for pop */
+    0 10px 20px rgba(0,0,0,0.2),
+    0 0 30px rgba(34,211,238,0.6);
+  
+  /* Outline */
+  -webkit-text-stroke: 2px #fff;
+  
+  /* Subtle gradient fill */
+  background: linear-gradient(180deg, #ffffff 20%, #22d3ee 80%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  /* Note: text-fill-color transparent hides the shadow in some browsers if not careful, 
+     so we use a fallback color and only partial transparency if needed, 
+     but for this specific stack, keeping color solid and using background-clip usually 
+     overrides it. Actually, standard trick: */
+  -webkit-text-fill-color: transparent;
 }
 

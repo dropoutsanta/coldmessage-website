@@ -209,17 +209,29 @@ export default function LandingPage() {
             className="text-center max-w-4xl mx-auto"
           >
             
-            <h1 className="text-6xl sm:text-7xl md:text-8xl font-black tracking-tight mb-8 leading-[1.1] text-slate-900 drop-shadow-sm">
-              Generate a test campaign
-              <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-500 via-sky-500 to-cyan-500 bg-[200%_auto] animate-gradient">
-                for your business
-              </span>
-            </h1>
+            <div className="mb-8 relative z-10">
+              
+              <div className="relative inline-block my-4 py-2 px-4">
+                {/* SVG Filters for distortion/texture */}
+                <svg className="absolute w-0 h-0">
+                  <defs>
+                    <filter id="ice-texture" x="0%" y="0%" width="100%" height="100%">
+                      <feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="2" result="noise" />
+                      <feDisplacementMap in="SourceGraphic" in2="noise" scale="3" xChannelSelector="R" yChannelSelector="G" />
+                    </filter>
+                  </defs>
+                </svg>
+
+                {/* Main 3D Ice Text */}
+                <h2 className="ice-text-3d text-7xl sm:text-8xl md:text-9xl tracking-normal select-none relative z-10">
+                  Send 500 Cold Emails Today
+                </h2>
+              </div>
+            </div>
             
             <p className="text-xl md:text-2xl text-slate-500 max-w-2xl mx-auto mb-14 leading-relaxed font-medium">
-              Enter your domain. We'll analyze your business, find qualified leads, 
-              and write personalized emails—ready to send in minutes.
+              Enter your domain. We analyze your business, find leads, 
+              write emails—and send them <span className="text-slate-700 font-bold">today</span>.
             </p>
             
             {/* Domain Input - "Thick Ice" Effect */}
