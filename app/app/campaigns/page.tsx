@@ -274,7 +274,7 @@ export default function CampaignsPage() {
               <div>
                 <div className="flex items-center gap-2">
                   <Users className="w-4 h-4 text-white/30" />
-                  <span className="text-white/70">{campaign.qualifiedLeads?.length || 0}</span>
+                  <span className="text-white/70">{campaign.leads}</span>
                 </div>
               </div>
 
