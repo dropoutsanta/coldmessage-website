@@ -38,8 +38,8 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      customerEmail = session.customer_details?.email;
-      campaignId = session.metadata?.campaignId;
+      customerEmail = session.customer_details?.email ?? null;
+      campaignId = session.metadata?.campaignId ?? null;
       stripeId = sessionId;
     } else {
       return NextResponse.json(

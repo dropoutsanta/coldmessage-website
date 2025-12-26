@@ -281,15 +281,15 @@ export default function DomainEntryForm({ slug, debugMode = false, onCampaignGen
             <div className="flex-1 p-2 relative overflow-hidden flex flex-col">
                {/* Pass data to InsightTeaser. If no liveDebug yet, we construct a temporary one 
                    so InsightTeaser can render the "Website Scraper" (first step) state. */}
-               <InsightTeaser 
-                 liveDebug={liveDebug || {
-                   currentAgent: 'Website Scraper',
-                   completedAgents: [],
-                   logs: [],
-                   projectId: '',
-                   domain: domain
-                 }} 
-               />
+              <InsightTeaser 
+                liveDebug={liveDebug || {
+                  pipelineId: '',
+                  startedAt: new Date().toISOString(),
+                  currentAgent: 'Website Scraper',
+                  completedAgents: [],
+                  domain: domain
+                }} 
+              />
             </div>
 
             {/* Footer Status */}
