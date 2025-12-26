@@ -222,12 +222,14 @@ export default function LandingPage() {
                   </defs>
                 </svg>
 
-                {/* Main 3D Ice Text */}
-                <h2 className="ice-text text-5xl sm:text-7xl md:text-8xl lg:text-9xl tracking-normal select-none relative z-10 flex flex-col items-center">
-                  <span>Send 500</span>
-                  <span className="ice-text text-5xl sm:text-7xl md:text-8xl lg:text-9xl" style={{ '--ice-highlight': '#FFFFFF00' } as React.CSSProperties}>Cold Emails</span>
-                  <span>Today</span>
-                </h2>
+                {/* Main 3D Ice Text - Wrapper handles flex layout to avoid iOS background-clip:text bug */}
+                <div className="flex flex-col items-center">
+                  <h2 className="ice-text ice-text--mobile text-5xl sm:text-7xl md:text-8xl lg:text-9xl tracking-normal select-none relative z-10 text-center">
+                    <span className="block">Send 500</span>
+                    <span className="ice-text ice-text--mobile text-5xl sm:text-7xl md:text-8xl lg:text-9xl block" style={{ '--ice-highlight': '#FFFFFF00' } as React.CSSProperties}>Cold Emails</span>
+                    <span className="block">Today</span>
+                  </h2>
+                </div>
               </div>
             </div>
             

@@ -272,3 +272,18 @@ input:focus-visible {
   color: #dbeafe;
 }
 
+/* Mobile optimization: thinner stroke and shallower depth for small screens */
+@media (max-width: 639px) {
+  .ice-text--mobile {
+    -webkit-text-stroke: 0px var(--ice-highlight);
+    text-shadow: 
+      0 -1px 0 var(--ice-highlight),
+      0 1px 0 var(--ice-l2),
+      0 2px 0 var(--ice-l4),
+      0 3px 0 var(--ice-l6),
+      0 4px 0 var(--ice-l8),
+      0 6px 12px rgba(0,0,0,0.15),
+      0 0 15px var(--ice-glow);
+  }
+}
+
