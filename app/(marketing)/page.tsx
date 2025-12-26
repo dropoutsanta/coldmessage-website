@@ -635,19 +635,19 @@ function PricingCard({ tier }: { tier: PricingTier }) {
             className={cn(
               "mt-8 p-5 rounded-2xl border cursor-pointer transition-all duration-500 flex items-center justify-between group backdrop-blur-sm",
               isRapido 
-                ? "bg-amber-50/50 border-amber-200" 
+                ? "bg-gradient-to-r from-fuchsia-50/60 to-violet-50/60 border-fuchsia-200/80 ring-1 ring-fuchsia-200/50" 
                 : "bg-white/40 border-white/60"
             )}
           >
             <div className="flex items-center gap-3">
               <div className={cn(
                 "w-6 h-6 rounded-full border flex items-center justify-center transition-colors duration-500 shadow-sm",
-                isRapido ? "bg-amber-400 border-amber-400 text-white" : "bg-white border-slate-200"
+                isRapido ? "bg-gradient-to-br from-fuchsia-400 to-violet-500 border-fuchsia-400 text-white shadow-fuchsia-300/50" : "bg-white border-slate-200"
               )}>
                 {isRapido && <Check className="w-3 h-3" />}
               </div>
               <div>
-                <p className={cn("font-bold text-sm", isRapido ? "text-amber-700" : "text-slate-700")}>
+                <p className={cn("font-bold text-sm", isRapido ? "text-fuchsia-700" : "text-slate-700")}>
                   Rapido Speed <Zap className="w-3 h-3 inline ml-1" />
                 </p>
                 <p className="text-xs text-slate-400 mt-0.5">Launch in 24h (+${tier.rapidoPrice})</p>

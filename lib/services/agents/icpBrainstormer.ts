@@ -166,7 +166,7 @@ Be opinionated. Each persona should represent ONE clear role archetype with tigh
   let responseText = '';
   const stream = anthropic.messages.stream({
     model: 'claude-sonnet-4-20250514',
-    max_tokens: 64000,
+    max_tokens: 8192,
     messages: [
       {
         role: 'user',
