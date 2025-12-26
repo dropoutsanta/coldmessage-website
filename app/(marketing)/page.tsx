@@ -6,7 +6,9 @@ import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion'
 import { Check, Zap, ChevronDown, X, Sparkles, Globe, Mail, Users, Shield, TrendingUp } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import Snowfall from 'react-snowfall';
+import dynamic from 'next/dynamic';
+
+const Snowfall = dynamic(() => import('react-snowfall'), { ssr: false });
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -50,6 +52,52 @@ function FrostCard({ children, className }: { children: ReactNode; className?: s
       )}
       <div className="relative z-0">
         {children}
+      </div>
+    </div>
+  );
+}
+
+// Reusable domain input with glowing effect
+interface DomainInputProps {
+  value: string;
+  onChange: (value: string) => void;
+  isLoading?: boolean;
+  inputRef?: React.RefObject<HTMLInputElement | null>;
+  placeholder?: string;
+}
+
+function DomainInput({ value, onChange, isLoading = false, inputRef, placeholder = "company.com" }: DomainInputProps) {
+  return (
+    <div className="relative group">
+      {/* Cold glow behind input */}
+      <div className="absolute -inset-1 bg-gradient-to-r from-cyan-300 via-sky-300 to-cyan-300 rounded-2xl blur-lg opacity-40 group-hover:opacity-55 group-focus-within:opacity-70 group-focus-within:from-cyan-400 group-focus-within:via-sky-400 group-focus-within:to-cyan-400 transition-all duration-300 animate-pulse" />
+      
+      <div className="relative flex items-center bg-white backdrop-blur-2xl rounded-2xl border border-white/80 shadow-[0_8px_32px_0_rgba(31,38,135,0.1)] overflow-hidden p-1.5 sm:p-2 ring-1 ring-white/60">
+        <div className="pl-2 sm:pl-4 text-cyan-500">
+          <Globe className="w-5 h-5 sm:w-6 sm:h-6" />
+        </div>
+        <input
+          ref={inputRef}
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          className="flex-1 min-w-0 bg-transparent px-2 sm:px-4 py-3 sm:py-4 text-base sm:text-lg text-slate-900 placeholder:text-slate-400/80 outline-none focus:ring-0 focus:outline-none border-none font-medium"
+          disabled={isLoading}
+        />
+        <button
+          type="submit"
+          disabled={isLoading}
+          className="px-4 sm:px-8 py-3 sm:py-4 bg-gradient-to-r from-cyan-500 to-sky-500 text-white font-bold rounded-xl transition-all duration-500 flex items-center gap-1.5 sm:gap-2 disabled:opacity-50 active:scale-[0.98] shrink-0 text-sm sm:text-base"
+        >
+          {isLoading ? (
+            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+          ) : (
+            <>
+              Generate <Sparkles className="w-4 h-4 text-cyan-100" />
+            </>
+          )}
+        </button>
       </div>
     </div>
   );
@@ -245,38 +293,12 @@ export default function LandingPage() {
               transition={{ delay: 0.4 }}
               className="max-w-xl mx-auto relative z-20"
             >
-              <div className="relative group">
-                {/* Cold glow behind input */}
-                <div className="absolute -inset-1 bg-gradient-to-r from-cyan-300 via-sky-300 to-cyan-300 rounded-2xl blur-lg opacity-40 group-focus-within:opacity-70 group-focus-within:from-cyan-400 group-focus-within:via-sky-400 group-focus-within:to-cyan-400 transition-all duration-300 animate-pulse" />
-                
-                <div className="relative flex items-center bg-white backdrop-blur-2xl rounded-2xl border border-white/80 shadow-[0_8px_32px_0_rgba(31,38,135,0.1)] overflow-hidden p-1.5 sm:p-2 ring-1 ring-white/60">
-                  <div className="pl-2 sm:pl-4 text-cyan-500">
-                    <Globe className="w-5 h-5 sm:w-6 sm:h-6" />
-                  </div>
-                  <input
-                    ref={inputRef}
-                    type="text"
-                    value={domain}
-                    onChange={(e) => setDomain(e.target.value)}
-                    placeholder="yourdomain.com"
-                    className="flex-1 min-w-0 bg-transparent px-2 sm:px-4 py-3 sm:py-4 text-base sm:text-lg text-slate-900 placeholder:text-slate-400/80 outline-none focus:ring-0 focus:outline-none border-none font-medium"
-                    disabled={isLoading}
-                  />
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="px-4 sm:px-8 py-3 sm:py-4 bg-gradient-to-r from-cyan-500 to-sky-500 text-white font-bold rounded-xl transition-all duration-500 flex items-center gap-1.5 sm:gap-2 disabled:opacity-50 active:scale-[0.98] shrink-0 text-sm sm:text-base"
-                  >
-                    {isLoading ? (
-                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    ) : (
-                      <>
-                        Generate <Sparkles className="w-4 h-4 text-cyan-100" />
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
+              <DomainInput
+                value={domain}
+                onChange={setDomain}
+                isLoading={isLoading}
+                inputRef={inputRef}
+              />
               
               {error && (
                 <motion.p 
@@ -464,7 +486,8 @@ export default function LandingPage() {
               <h2 className="text-3xl md:text-4xl font-black text-slate-900 mb-4 tracking-tight">Us vs. Traditional Agencies</h2>
             </div>
 
-            <FrostCard className="rounded-[2rem]">
+            {/* Desktop Table */}
+            <FrostCard className="rounded-[2rem] hidden md:block">
               <div className="grid grid-cols-3 bg-white/40 border-b border-white/50 p-8 text-sm font-bold uppercase tracking-wider text-slate-400">
                 <div></div>
                 <div className="text-cyan-600">ColdMessage</div>
@@ -472,11 +495,11 @@ export default function LandingPage() {
               </div>
               
               {[
-                { feat: "Setup Time", us: "Minutes", them: "2-4 Weeks" },
-                { feat: "Infrastructure", us: "Included", them: "$50+/mo per inbox" },
-                { feat: "Ready to Send", us: "Immediately", them: "14 Days warmup" },
+                { feat: "Cost", us: "Starts at $99", them: "$3000/mo+" },
                 { feat: "Commitment", us: "Pay per Campaign", them: "3 Month Retainer" },
-                { feat: "Time to Launch", us: "Same Day", them: "Weeks" }
+                { feat: "Infrastructure", us: "Included", them: "Additional Cost" },
+                { feat: "Setup Time", us: "2 Minutes", them: "2-4 Weeks" },
+                { feat: "Ready to Send", us: "Immediately", them: "14 Days warmup" }
               ].map((row, i) => (
                 <div key={i} className="grid grid-cols-3 p-8 border-b border-white/40 last:border-0 items-center">
                   <div className="font-semibold text-slate-700">{row.feat}</div>
@@ -486,6 +509,35 @@ export default function LandingPage() {
                   </div>
                   <div className="text-slate-400 flex items-center gap-2">
                     <X className="w-4 h-4" /> {row.them}
+                  </div>
+                </div>
+              ))}
+            </FrostCard>
+
+            {/* Mobile Card */}
+            <FrostCard className="md:hidden rounded-[2rem]">
+              <div className="grid grid-cols-2 bg-white/40 border-b border-white/50 p-4 text-xs font-bold uppercase tracking-wider text-slate-400">
+                <div className="text-cyan-600">ColdMessage</div>
+                <div>Agencies</div>
+              </div>
+              {[
+                { feat: "Cost", us: "Starts at $99", them: "$3000/mo+" },
+                { feat: "Commitment", us: "Pay per Campaign", them: "3 Month Retainer" },
+                { feat: "Infrastructure", us: "Included", them: "Additional Cost" },
+                { feat: "Setup Time", us: "2 Minutes", them: "2-4 Weeks" },
+                { feat: "Ready to Send", us: "Immediately", them: "14 Days warmup" }
+              ].map((row, i) => (
+                <div key={i} className="p-4 border-b border-white/40 last:border-0">
+                  <div className="font-semibold text-slate-700 text-sm mb-3">{row.feat}</div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="font-bold text-cyan-600 flex items-center gap-2 text-sm">
+                      <div className="p-1 bg-cyan-100 rounded-full shrink-0"><Check className="w-3 h-3" /></div>
+                      <span>{row.us}</span>
+                    </div>
+                    <div className="text-slate-400 flex items-center gap-2 text-sm">
+                      <X className="w-4 h-4 shrink-0" />
+                      <span>{row.them}</span>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -517,40 +569,15 @@ export default function LandingPage() {
                   Ready to see your campaign?
                 </h2>
                 <p className="text-slate-500 text-xl md:text-2xl mb-12 max-w-2xl mx-auto font-medium leading-relaxed">
-                  Enter your domain and we'll show you exactly who we can reach and what we'll say.
+                  Enter your domain and we&apos;ll show you exactly who we can reach and what we&apos;ll say.
                 </p>
                 
                 <form onSubmit={handleSubmit} className="max-w-xl mx-auto relative">
-                  <div className="relative group">
-                    {/* Cold glow behind input */}
-                    <div className="absolute -inset-1 bg-gradient-to-r from-cyan-300 via-sky-300 to-cyan-300 rounded-2xl blur-lg opacity-40 group-focus-within:opacity-70 group-focus-within:from-cyan-400 group-focus-within:via-sky-400 group-focus-within:to-cyan-400 transition-all duration-300 animate-pulse" />
-                    
-                    <div className="relative flex items-center bg-white backdrop-blur-2xl rounded-2xl border border-white/80 shadow-[0_8px_32px_0_rgba(31,38,135,0.1)] overflow-hidden p-1.5 sm:p-2 ring-1 ring-white/60">
-                      <div className="pl-2 sm:pl-4 text-cyan-500">
-                        <Globe className="w-5 h-5 sm:w-6 sm:h-6" />
-                      </div>
-                      <input
-                        type="text"
-                        value={domain}
-                        onChange={(e) => setDomain(e.target.value)}
-                        placeholder="domain.com"
-                        className="flex-1 min-w-0 bg-transparent px-2 sm:px-4 py-3 sm:py-4 text-base sm:text-lg text-slate-900 placeholder:text-slate-400/80 outline-none focus:ring-0 focus:outline-none border-none font-medium"
-                      />
-                      <button
-                        type="submit"
-                        disabled={isLoading}
-                        className="px-4 sm:px-8 py-3 sm:py-4 bg-gradient-to-r from-cyan-500 to-sky-500 text-white font-bold rounded-xl transition-all duration-500 flex items-center gap-1.5 sm:gap-2 disabled:opacity-50 active:scale-[0.98] cursor-pointer shrink-0 text-sm sm:text-base"
-                      >
-                        {isLoading ? (
-                          <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        ) : (
-                          <>
-                            Generate <Sparkles className="w-4 h-4 text-cyan-100" />
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
+                  <DomainInput
+                    value={domain}
+                    onChange={setDomain}
+                    isLoading={isLoading}
+                  />
                 </form>
               </div>
             </FrostCard>
@@ -597,13 +624,12 @@ function PricingCard({ tier }: { tier: PricingTier }) {
       viewport={{ once: true }}
       className={cn(
         "relative rounded-[2rem] p-10 flex flex-col h-full group",
-        iceCardInteractive,
-        tier.recommended ? "frost-recommended z-10 scale-105" : ""
+        iceCardInteractive
       )}
     >
-      {tier.recommended && (
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-gradient-to-r from-cyan-500 to-sky-500 text-white px-6 py-2 rounded-full text-xs font-bold uppercase tracking-wide shadow-lg shadow-cyan-500/30 ring-4 ring-white/50 backdrop-blur">
-          Most Popular
+      {tier.hasRapido && (
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-900 text-white px-5 py-2 rounded-full text-xs font-bold uppercase tracking-wide shadow-lg">
+          Start Here
         </div>
       )}
 
@@ -666,12 +692,7 @@ function PricingCard({ tier }: { tier: PricingTier }) {
 
       <button 
         onClick={handleSelectPlan}
-        className={cn(
-          "w-full py-5 rounded-xl font-bold transition-all duration-500 active:scale-[0.98] shadow-lg text-lg",
-          tier.recommended 
-            ? "bg-gradient-to-r from-cyan-500 to-sky-500 text-white shadow-cyan-200" 
-            : "bg-slate-900 text-white shadow-slate-200"
-        )}
+        className="w-full py-5 rounded-xl font-bold transition-all duration-500 active:scale-[0.98] shadow-lg text-lg bg-slate-900 text-white shadow-slate-200"
       >
         Get Started
       </button>
