@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
-import { Check, Zap, ArrowRight, ChevronDown, X, Sparkles, Globe, Mail, Users, Shield, TrendingUp } from 'lucide-react';
+import { Check, Zap, ChevronDown, X, Sparkles, Globe, Mail, Users, Shield, TrendingUp } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import Snowfall from 'react-snowfall';
@@ -226,7 +226,7 @@ export default function LandingPage() {
                 <div className="flex flex-col items-center">
                   <h2 className="ice-text ice-text--mobile text-5xl sm:text-7xl md:text-8xl lg:text-9xl tracking-normal select-none relative z-10 text-center">
                     <span className="block">Send 500</span>
-                    <span className="ice-text ice-text--mobile text-5xl sm:text-7xl md:text-8xl lg:text-9xl block" style={{ '--ice-highlight': '#FFFFFF00' } as React.CSSProperties}>Cold Emails</span>
+                    <span className="ice-text ice-text--mobile-light text-5xl sm:text-7xl md:text-8xl lg:text-9xl block" style={{ '--ice-highlight': '#FFFFFF00' } as React.CSSProperties}>Cold Emails</span>
                     <span className="block">Today</span>
                   </h2>
                 </div>
@@ -247,9 +247,9 @@ export default function LandingPage() {
             >
               <div className="relative group">
                 {/* Cold glow behind input */}
-                <div className="absolute -inset-1 bg-gradient-to-r from-cyan-300 via-sky-300 to-cyan-300 rounded-2xl blur-lg opacity-40 animate-pulse" />
+                <div className="absolute -inset-1 bg-gradient-to-r from-cyan-300 via-sky-300 to-cyan-300 rounded-2xl blur-lg opacity-40 group-focus-within:opacity-70 group-focus-within:from-cyan-400 group-focus-within:via-sky-400 group-focus-within:to-cyan-400 transition-all duration-300 animate-pulse" />
                 
-                <div className="relative flex items-center bg-white/70 backdrop-blur-2xl rounded-2xl border border-white/80 shadow-[0_8px_32px_0_rgba(31,38,135,0.1)] overflow-hidden p-1.5 sm:p-2 ring-1 ring-white/60">
+                <div className="relative flex items-center bg-white backdrop-blur-2xl rounded-2xl border border-white/80 shadow-[0_8px_32px_0_rgba(31,38,135,0.1)] overflow-hidden p-1.5 sm:p-2 ring-1 ring-white/60">
                   <div className="pl-2 sm:pl-4 text-cyan-500">
                     <Globe className="w-5 h-5 sm:w-6 sm:h-6" />
                   </div>
@@ -258,14 +258,14 @@ export default function LandingPage() {
                     type="text"
                     value={domain}
                     onChange={(e) => setDomain(e.target.value)}
-                    placeholder="yourcompany.com"
+                    placeholder="yourdomain.com"
                     className="flex-1 min-w-0 bg-transparent px-2 sm:px-4 py-3 sm:py-4 text-base sm:text-lg text-slate-900 placeholder:text-slate-400/80 outline-none focus:ring-0 focus:outline-none border-none font-medium"
                     disabled={isLoading}
                   />
                   <button
                     type="submit"
                     disabled={isLoading}
-                    className="px-4 sm:px-8 py-3 sm:py-4 bg-gradient-to-r from-cyan-600 to-sky-600 text-white font-bold rounded-xl transition-all duration-500 flex items-center gap-1.5 sm:gap-2 disabled:opacity-50 shadow-lg shadow-cyan-500/20 active:scale-[0.98] shrink-0 text-sm sm:text-base"
+                    className="px-4 sm:px-8 py-3 sm:py-4 bg-gradient-to-r from-cyan-500 to-sky-500 text-white font-bold rounded-xl transition-all duration-500 flex items-center gap-1.5 sm:gap-2 disabled:opacity-50 active:scale-[0.98] shrink-0 text-sm sm:text-base"
                   >
                     {isLoading ? (
                       <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -521,30 +521,35 @@ export default function LandingPage() {
                 </p>
                 
                 <form onSubmit={handleSubmit} className="max-w-xl mx-auto relative">
-                  <div className="relative flex items-center bg-white/70 backdrop-blur-2xl rounded-2xl border border-white/80 shadow-[0_8px_32px_0_rgba(31,38,135,0.1)] overflow-hidden p-1.5 sm:p-2 ring-1 ring-white/60">
-                    <div className="pl-2 sm:pl-4 text-cyan-500">
-                      <Globe className="w-5 h-5 sm:w-6 sm:h-6" />
+                  <div className="relative group">
+                    {/* Cold glow behind input */}
+                    <div className="absolute -inset-1 bg-gradient-to-r from-cyan-300 via-sky-300 to-cyan-300 rounded-2xl blur-lg opacity-40 group-focus-within:opacity-70 group-focus-within:from-cyan-400 group-focus-within:via-sky-400 group-focus-within:to-cyan-400 transition-all duration-300 animate-pulse" />
+                    
+                    <div className="relative flex items-center bg-white backdrop-blur-2xl rounded-2xl border border-white/80 shadow-[0_8px_32px_0_rgba(31,38,135,0.1)] overflow-hidden p-1.5 sm:p-2 ring-1 ring-white/60">
+                      <div className="pl-2 sm:pl-4 text-cyan-500">
+                        <Globe className="w-5 h-5 sm:w-6 sm:h-6" />
+                      </div>
+                      <input
+                        type="text"
+                        value={domain}
+                        onChange={(e) => setDomain(e.target.value)}
+                        placeholder="domain.com"
+                        className="flex-1 min-w-0 bg-transparent px-2 sm:px-4 py-3 sm:py-4 text-base sm:text-lg text-slate-900 placeholder:text-slate-400/80 outline-none focus:ring-0 focus:outline-none border-none font-medium"
+                      />
+                      <button
+                        type="submit"
+                        disabled={isLoading}
+                        className="px-4 sm:px-8 py-3 sm:py-4 bg-gradient-to-r from-cyan-500 to-sky-500 text-white font-bold rounded-xl transition-all duration-500 flex items-center gap-1.5 sm:gap-2 disabled:opacity-50 active:scale-[0.98] cursor-pointer shrink-0 text-sm sm:text-base"
+                      >
+                        {isLoading ? (
+                          <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : (
+                          <>
+                            Generate <Sparkles className="w-4 h-4 text-cyan-100" />
+                          </>
+                        )}
+                      </button>
                     </div>
-                    <input
-                      type="text"
-                      value={domain}
-                      onChange={(e) => setDomain(e.target.value)}
-                      placeholder="yourcompany.com"
-                      className="flex-1 min-w-0 bg-transparent px-2 sm:px-4 py-3 sm:py-4 text-base sm:text-lg text-slate-900 placeholder:text-slate-400/80 outline-none focus:ring-0 focus:outline-none border-none font-medium"
-                    />
-                    <button
-                      type="submit"
-                      disabled={isLoading}
-                      className="px-4 sm:px-8 py-3 sm:py-4 bg-gradient-to-r from-cyan-600 to-sky-600 text-white font-bold rounded-xl transition-all duration-500 flex items-center gap-1.5 sm:gap-2 disabled:opacity-50 shadow-lg shadow-cyan-500/20 active:scale-[0.98] cursor-pointer shrink-0 text-sm sm:text-base"
-                    >
-                      {isLoading ? (
-                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      ) : (
-                        <>
-                          Generate <Sparkles className="w-4 h-4 text-cyan-100" />
-                        </>
-                      )}
-                    </button>
                   </div>
                 </form>
               </div>

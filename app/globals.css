@@ -272,9 +272,23 @@ input:focus-visible {
   color: #dbeafe;
 }
 
-/* Mobile optimization: thinner stroke and shallower depth for small screens */
+/* Mobile optimization: reduced stroke to prevent letter merging */
 @media (max-width: 639px) {
+  /* For "Send 500" and "Today" - thin stroke for definition */
   .ice-text--mobile {
+    -webkit-text-stroke: 0.5px var(--ice-highlight);
+    text-shadow: 
+      0 -1px 0 var(--ice-highlight),
+      0 1px 0 var(--ice-l2),
+      0 2px 0 var(--ice-l4),
+      0 3px 0 var(--ice-l6),
+      0 4px 0 var(--ice-l8),
+      0 6px 12px rgba(0,0,0,0.15),
+      0 0 15px var(--ice-glow);
+  }
+  
+  /* For "Cold Emails" - no stroke since it has transparent highlight */
+  .ice-text--mobile-light {
     -webkit-text-stroke: 0px var(--ice-highlight);
     text-shadow: 
       0 -1px 0 var(--ice-highlight),
