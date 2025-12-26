@@ -43,6 +43,7 @@ export interface LiveDebugData {
     id: string;
     name: string;
     titles: string[];
+    roleDescription?: string; // valueTheySeek or whyThisPersona
   }[];
   selectedPersona?: {
     id: string;
@@ -212,7 +213,12 @@ export async function generateCampaign(
         }
       }
       if (update.allPersonas) {
-        liveDebug.allPersonas = update.allPersonas;
+        liveDebug.allPersonas = update.allPersonas.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          titles: p.titles,
+          roleDescription: p.valueTheySeek || p.whyThisPersona, // Map richer context
+        }));
       }
       if (update.selectedPersona) {
         liveDebug.selectedPersona = update.selectedPersona;

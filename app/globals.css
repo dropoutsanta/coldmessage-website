@@ -20,8 +20,8 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Custom scrollbar for dark theme */
-::-webkit-scrollbar {
+/* Custom scrollbar for dark theme - DISABLED
+/* ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
@@ -37,7 +37,7 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #3a3a45;
-}
+} */
 
 /* Selection */
 ::selection {

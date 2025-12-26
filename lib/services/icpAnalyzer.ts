@@ -164,6 +164,8 @@ export async function analyzeCompanyAndICP(
       id: p.id,
       name: p.name,
       titles: p.titles,
+      valueTheySeek: p.valueTheySeek,
+      whyThisPersona: p.whyThisPersona,
     })),
   });
 

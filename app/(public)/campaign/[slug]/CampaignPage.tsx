@@ -84,10 +84,11 @@ function convertDebugDataToLiveDebug(debugData: CampaignDebugData): LiveDebugDat
     startedAt: analysis.startedAt,
     currentAgent: '', // Completed, no current agent
     completedAgents,
-    allPersonas: analysis.steps.icpBrainstormer?.output?.personas?.map((p: { id: string; name: string; titles: string[] }) => ({
+    allPersonas: analysis.steps.icpBrainstormer?.output?.personas?.map((p: any) => ({
       id: p.id,
       name: p.name,
       titles: p.titles || [],
+      roleDescription: p.valueTheySeek || p.whyThisPersona || '',
     })),
     selectedPersona: {
       id: analysis.steps.coldEmailRanker?.output?.selectedPersonaId || '',
@@ -283,7 +284,7 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
             {/* Last Updated */}
             {campaign.updatedAt && (
               <p className="text-sm text-slate-500">
-                Last generated: <span className="font-semibold text-slate-700">{formatDate(campaign.updatedAt)}</span>
+                Date Generated: <span className="font-semibold text-slate-700">{formatDate(campaign.updatedAt)}</span>
               </p>
             )}
             
@@ -601,16 +602,7 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className={`bg-slate-950 py-12 px-6 text-center border-t border-slate-800 relative z-10 ${isDebugMode && effectiveLiveDebug ? 'pb-[75vh]' : ''}`}>
-        <div className="flex items-center justify-center gap-3 mb-6 opacity-50 grayscale hover:grayscale-0 hover:opacity-100 transition-all duration-500">
-          <img src="/coldmessage_logo.png" alt="ColdMessage" className="h-24 w-auto" />
-          <span className="text-white font-bold tracking-tight text-lg">ColdMessage.io</span>
-        </div>
-        <p className="text-slate-600 text-sm">
-          © {new Date().getFullYear()} ColdMessage Inc. All rights reserved.
-        </p>
-      </footer>
+      {/* Footer Removed */}
       
       {/* Debug Panel - shows when ?debug=true */}
       {isDebugMode && effectiveLiveDebug && (
@@ -805,16 +797,16 @@ function LeadSelector({ leads }: { leads: QualifiedLead[] }) {
             </div>
 
             {/* Email Header */}
-            <div className="px-4 lg:px-6 py-4 border-b border-slate-50 space-y-3">
-              <div className="flex items-start lg:items-center gap-2 lg:gap-3 text-sm">
-                <span className="text-slate-400 w-10 lg:w-12 text-right shrink-0">To:</span>
+            <div className="px-4 lg:px-6 py-4 border-b border-slate-50">
+              <div className="flex items-center gap-2 lg:gap-3 text-sm mb-3">
+                <span className="text-slate-400 w-12 text-right shrink-0">To:</span>
                 <div className="flex flex-wrap items-center gap-1 lg:gap-2 bg-sky-50 text-sky-700 px-2 py-0.5 rounded border border-sky-100">
                   <span className="font-medium">{selectedLead.name}</span>
                   <span className="text-sky-400 text-xs hidden sm:inline">&lt;{selectedLead.name.split(' ')[0].toLowerCase()}@{selectedLead.company.toLowerCase().replace(/\s+/g, '')}.com&gt;</span>
                 </div>
               </div>
-              <div className="flex items-start lg:items-center gap-2 lg:gap-3 text-sm">
-                <span className="text-slate-400 w-10 lg:w-12 text-right shrink-0">Subject:</span>
+              <div className="flex items-center gap-2 lg:gap-3 text-sm">
+                <span className="text-slate-400 w-12 text-right shrink-0">Subject:</span>
                 <span className="font-medium text-slate-800">{filledSubject}</span>
               </div>
             </div>

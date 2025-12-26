@@ -3,6 +3,20 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, PanInfo } from 'framer-motion';
 import { LiveDebugData } from '@/lib/services/campaignGenerator';
+import { 
+  Globe, 
+  Building2, 
+  BrainCircuit, 
+  BarChart3, 
+  Filter, 
+  Search, 
+  PenTool, 
+  Check, 
+  Target,
+  Users2,
+  MapPin,
+  Briefcase
+} from 'lucide-react';
 
 interface Props {
   liveDebug: LiveDebugData | null;
@@ -44,14 +58,14 @@ function GlassPanel({ children }: { children: React.ReactNode }) {
  * Currently running agent indicator
  */
 function CurrentAgentContent({ agentName }: { agentName: string }) {
-  const agentIcons: Record<string, string> = {
-    'Website Scraper': '🌐',
-    'Company Profiler': '🏢',
-    'ICP Brainstormer': '🧠',
-    'Cold Email Ranker': '📊',
-    'LinkedIn Filter Builder': '🔗',
-    'Lead Finder': '🔍',
-    'Email Writer': '✍️',
+  const agentIcons: Record<string, React.ReactNode> = {
+    'Website Scraper': <Globe className="w-12 h-12 text-blue-500" />,
+    'Company Profiler': <Building2 className="w-12 h-12 text-indigo-500" />,
+    'ICP Brainstormer': <BrainCircuit className="w-12 h-12 text-purple-500" />,
+    'Cold Email Ranker': <BarChart3 className="w-12 h-12 text-emerald-500" />,
+    'LinkedIn Filter Builder': <Filter className="w-12 h-12 text-amber-500" />,
+    'Lead Finder': <Search className="w-12 h-12 text-orange-500" />,
+    'Email Writer': <PenTool className="w-12 h-12 text-pink-500" />,
   };
 
   const agentDescriptions: Record<string, string> = {
@@ -66,13 +80,9 @@ function CurrentAgentContent({ agentName }: { agentName: string }) {
 
   return (
     <div className="flex flex-col items-center justify-center h-full text-center px-2">
-      <motion.span 
-        className="text-5xl mb-6 drop-shadow-sm"
-        animate={{ scale: [1, 1.1, 1], rotate: [0, 5, -5, 0] }}
-        transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
-      >
-        {agentIcons[agentName] || '⚡'}
-      </motion.span>
+      <div className="mb-6 drop-shadow-sm p-4 bg-white/50 rounded-2xl border border-white/60">
+        {agentIcons[agentName] || <Globe className="w-12 h-12 text-slate-400" />}
+      </div>
       <h3 className="text-xs font-bold text-amber-600 uppercase tracking-widest mb-2 border-b border-amber-100 pb-1">
         Now Running
       </h3>
@@ -102,50 +112,86 @@ function CurrentAgentContent({ agentName }: { agentName: string }) {
  * Company Profile content
  */
 function CompanyContent({ output, companyName }: { output: CompanyProfileOutput; companyName?: string }) {
+  // Helper for truncating text with simple expand logic if needed in future
+  // For now, we keep it concise with line clamping
+  const Section = ({ title, content, borderColor }: { title: string, content: string, borderColor: string }) => (
+    <div className={`border-l-2 pl-3 text-left ${borderColor} py-1`}>
+      <h4 className="text-[10px] font-bold uppercase tracking-wider mb-1 text-slate-400">
+        {title}
+      </h4>
+      <p className="text-sm text-slate-700 leading-relaxed font-medium line-clamp-3">
+        {content}
+      </p>
+    </div>
+  );
+
   return (
-    <div className="space-y-4 h-full flex flex-col">
-      <div className="flex items-center gap-3 mb-1">
-        <span className="text-2xl bg-blue-50 p-2 rounded-lg border border-blue-100">🏢</span>
-        <div>
-          <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-            Company Profile
+    <div className="h-full flex flex-col">
+      {/* Main Content with integrated header */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar px-1 pb-2">
+        {/* Header - now scrolls */}
+        <div className="flex items-center gap-4 mb-6 px-2 pt-2">
+          <div className="w-14 h-14 bg-white rounded-2xl border border-slate-100 flex items-center justify-center shadow-sm shrink-0 text-indigo-500">
+            <Building2 className="w-8 h-8" />
+          </div>
+          <div className="min-w-0 flex-1 text-left">
+            {(output.name || companyName) && (
+              <h3 className="text-lg font-bold text-slate-900 leading-tight truncate">
+                {output.name || companyName}
           </h3>
-          {(output.name || companyName) && (
-            <p className="text-base font-bold text-slate-900 leading-tight">{output.name || companyName}</p>
+            )}
+            {output.industry && (
+              <p className="text-xs font-semibold text-slate-400 mt-1 truncate">
+                {output.industry}
+              </p>
           )}
         </div>
       </div>
       
-      <div className="flex-1 space-y-3 overflow-y-auto pr-1">
         {output.tagline && (
-          <p className="text-xs font-medium text-slate-600 italic border-l-2 border-sky-300 pl-3 py-0.5 bg-sky-50/50 rounded-r-md">
-            "{output.tagline}"
-          </p>
+          <div className="text-center mb-6 px-2">
+            <p className="text-sm text-slate-600 font-medium italic relative">
+              <span className="text-slate-300 absolute -top-2 -left-1 text-2xl">"</span>
+              {output.tagline}
+              <span className="text-slate-300 absolute -bottom-4 -right-1 text-2xl">"</span>
+            </p>
+          </div>
         )}
         
+        <div className="space-y-4 px-1">
         {output.productOrService && (
-          <div className="text-sm text-slate-800">
-            <span className="text-[10px] font-bold text-slate-500 uppercase block mb-1">What they do</span>
-            <span className="leading-snug font-medium">{output.productOrService}</span>
-          </div>
+          <Section 
+            title="What they do" 
+            content={output.productOrService}
+            borderColor="border-sky-400"
+          />
+        )}
+        
+        {output.problemTheySolve && (
+          <Section 
+            title="Problem Solved" 
+            content={output.problemTheySolve}
+            borderColor="border-rose-400"
+          />
         )}
         
         {output.targetMarket && (
-          <div className="text-sm text-slate-800">
-            <span className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Who they serve</span>
-            <span className="leading-snug font-medium">{output.targetMarket}</span>
-          </div>
+          <Section 
+            title="Who they serve" 
+            content={output.targetMarket}
+            borderColor="border-indigo-400"
+          />
         )}
-      </div>
 
-      {output.industry && (
-        <div className="pt-2 mt-auto border-t border-slate-100">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-sky-100 text-sky-800 text-xs rounded-full font-bold">
-            <span className="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
-            {output.industry}
-          </span>
+        {output.competitiveAdvantage && (
+          <Section 
+            title="Why them" 
+            content={output.competitiveAdvantage}
+            borderColor="border-emerald-400"
+          />
+        )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -156,8 +202,10 @@ function CompanyContent({ output, companyName }: { output: CompanyProfileOutput;
 function BrainstormContent({ personas }: { personas: NonNullable<LiveDebugData['allPersonas']> }) {
   return (
     <div className="h-full flex flex-col">
-      <div className="flex items-center gap-3 mb-4">
-        <span className="text-2xl bg-purple-50 p-2 rounded-lg border border-purple-100">🧠</span>
+      <div className="flex items-center gap-3 mb-4 shrink-0">
+        <div className="p-2 bg-purple-50 rounded-lg border border-purple-100 text-purple-600">
+          <BrainCircuit className="w-6 h-6" />
+        </div>
         <div>
           <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
             Buyer Personas
@@ -166,20 +214,22 @@ function BrainstormContent({ personas }: { personas: NonNullable<LiveDebugData['
         </div>
       </div>
       
-      <div className="space-y-3 flex-1 overflow-y-auto pr-1">
-        {personas.slice(0, 4).map((persona, i) => (
-          <div key={persona.id} className="flex items-start gap-3 p-2 rounded-lg hover:bg-white/50 transition-colors">
-            <span className="w-6 h-6 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-xs font-bold text-slate-500 shrink-0 mt-0.5">
-              {i + 1}
-            </span>
-            <div className="min-w-0">
-              <p className="text-sm font-bold text-slate-800 truncate">{persona.name}</p>
+      <div className="flex-1 overflow-y-auto space-y-4 pr-1 pb-2 custom-scrollbar touch-pan-y">
+        {personas.map((persona) => (
+          <div key={persona.id} className="border-l-2 border-purple-300 pl-3 py-1 hover:bg-purple-50/30 transition-colors rounded-r-lg -ml-1">
+            <p className="text-sm font-bold text-slate-800 truncate leading-tight">{persona.name}</p>
               {persona.titles.length > 0 && (
-                <p className="text-xs text-slate-500 font-medium truncate mt-0.5">
-                  {persona.titles.slice(0, 2).join(', ')}
+              <p className="text-[11px] text-slate-400 font-medium truncate mt-0.5">
+                {persona.titles.slice(0, 2).join(' / ')}
+              </p>
+            )}
+            {/* @ts-ignore - roleDescription added to type recently */}
+            {persona.roleDescription && (
+              <p className="text-xs text-slate-600 mt-1.5 leading-relaxed line-clamp-2">
+                {/* @ts-ignore */}
+                {persona.roleDescription}
                 </p>
               )}
-            </div>
           </div>
         ))}
       </div>
@@ -206,7 +256,9 @@ function WinnerContent({
   return (
     <div className="h-full flex flex-col">
       <div className="flex items-center gap-3 mb-3">
-        <span className="text-2xl bg-emerald-50 p-2 rounded-lg border border-emerald-100">🎯</span>
+        <div className="p-2 bg-emerald-50 rounded-lg border border-emerald-100 text-emerald-600">
+          <Target className="w-6 h-6" />
+        </div>
         <div>
           <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
             Best Fit Selected
@@ -218,7 +270,9 @@ function WinnerContent({
       {/* Winner highlight */}
       <div className="bg-gradient-to-br from-emerald-50 to-white border border-emerald-200 rounded-lg p-3 mb-3 shadow-sm">
         <div className="flex items-center gap-2 mb-1.5">
-          <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center text-white text-[10px] shadow-sm">✓</div>
+          <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center text-white text-[10px] shadow-sm">
+            <Check className="w-3 h-3" />
+          </div>
           <span className="text-sm font-bold text-emerald-900 truncate">{winner?.personaName}</span>
           <span className="ml-auto text-xs font-bold font-mono bg-white text-emerald-700 px-2 py-0.5 rounded border border-emerald-100 shadow-sm">
             {winner?.score.toFixed(1)}
@@ -269,72 +323,92 @@ function TargetsContent({
 }) {
   return (
     <div className="h-full flex flex-col">
-      <div className="flex items-center gap-3 mb-4">
-        <span className="text-2xl bg-amber-50 p-2 rounded-lg border border-amber-100">🔍</span>
+      {/* Compact Header */}
+      <div className="flex items-center gap-3 mb-4 shrink-0">
+        <div className="p-2 bg-amber-50 rounded-lg border border-amber-100 text-amber-600">
+          <Search className="w-6 h-6" />
+        </div>
         <div>
-          <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+          <h3 className="text-sm font-bold text-slate-900 leading-tight">
             Search Criteria
           </h3>
-          <p className="text-xs font-semibold text-slate-700">LinkedIn Sales Navigator</p>
+          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
+            LinkedIn Sales Navigator
+          </p>
         </div>
       </div>
       
-      <div className="space-y-4 flex-1">
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-y-auto space-y-4 pr-1 pb-2 custom-scrollbar touch-pan-y">
+        
+        {/* Titles Section */}
         {filters.titles.length > 0 && (
           <div>
-            <p className="text-[10px] font-bold text-slate-500 uppercase mb-2">Target Titles</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Target Titles</p>
             <div className="flex flex-wrap gap-1.5">
-              {filters.titles.slice(0, 3).map((title, i) => (
-                <span key={i} className="px-2.5 py-1 bg-white border border-slate-200 text-slate-700 text-xs rounded-md font-bold shadow-sm truncate max-w-[140px]">
+              {filters.titles.slice(0, 5).map((title, i) => (
+                <span key={i} className="px-2 py-1 bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded font-medium shadow-sm break-words max-w-full">
                   {title}
                 </span>
               ))}
-              {filters.titles.length > 3 && (
-                <span className="px-2 py-1 bg-slate-50 border border-slate-100 text-slate-500 text-xs rounded-md font-medium">
-                  +{filters.titles.length - 3}
+              {filters.titles.length > 5 && (
+                <span className="px-2 py-1 bg-slate-50 border border-slate-100 text-slate-400 text-xs rounded font-medium">
+                  +{filters.titles.length - 5}
                 </span>
               )}
             </div>
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-3">
+        {/* Details Grid */}
+        <div className="grid grid-cols-1 gap-3">
             {filters.industries.length > 0 && (
-              <div>
-                <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Industry</p>
-                <p className="text-xs font-bold text-slate-800 line-clamp-2">
-                  {filters.industries.slice(0, 2).join(', ')}
+              <div className="bg-slate-50/50 rounded-lg p-2.5 border border-slate-100">
+                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Industry</p>
+                <p className="text-xs font-semibold text-slate-800 leading-relaxed">
+                  {filters.industries.join(', ')}
                 </p>
               </div>
             )}
             
             {(filters.locations.length > 0 || filters.companySize) && (
-              <div>
-                 <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Details</p>
-                 <div className="space-y-1">
+              <div className="bg-slate-50/50 rounded-lg p-2.5 border border-slate-100">
+                 <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Parameters</p>
+                 <div className="flex flex-wrap gap-2">
                     {filters.locations.length > 0 && (
-                        <p className="text-xs font-medium text-slate-600 truncate">📍 {filters.locations[0]}</p>
+                        <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 bg-white px-2 py-0.5 rounded border border-slate-200">
+                          <MapPin className="w-3 h-3" /> {filters.locations[0]}
+                        </span>
                     )}
                     {filters.companySize && (
-                        <p className="text-xs font-medium text-slate-600 truncate">🏢 {filters.companySize}</p>
+                        <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 bg-white px-2 py-0.5 rounded border border-slate-200">
+                          <Building2 className="w-3 h-3" /> {filters.companySize}
+                        </span>
                     )}
                  </div>
               </div>
             )}
         </div>
+        </div>
 
+      {/* Footer - Results */}
         {leadsFound !== undefined && leadsFound > 0 && (
-          <div className="mt-auto pt-3 border-t border-slate-100">
-            <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-100 px-3 py-2 rounded-lg">
-              <span className="text-emerald-500 font-bold text-lg">✓</span>
+        <div className="mt-3 pt-3 border-t border-slate-100 shrink-0">
+          <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-100 px-3 py-2.5 rounded-xl">
+            <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold shrink-0">
+              <Check className="w-5 h-5" />
+            </div>
               <div>
-                 <p className="text-sm font-bold text-emerald-800">Found {leadsFound} leads</p>
-                 <p className="text-[10px] font-medium text-emerald-600 uppercase tracking-wide">Ready to message</p>
+               <p className="text-sm font-bold text-emerald-900 leading-tight">
+                  Found {leadsFound.toLocaleString()} leads
+               </p>
+               <p className="text-[10px] font-medium text-emerald-600 uppercase tracking-wide">
+                  Ready to message
+               </p>
               </div>
             </div>
           </div>
         )}
-      </div>
     </div>
   );
 }
@@ -410,10 +484,25 @@ export default function InsightTeaser({ liveDebug }: Props) {
     const hasFilters = liveDebug.finalFilters && liveDebug.finalFilters.titles.length > 0;
     if (hasFilters) {
       const leadFinderAgent = liveDebug.completedAgents.find(a => a.name === 'Lead Finder');
-      const leadsFound = leadFinderAgent?.details?.length || 
-        (leadFinderAgent?.result.match(/Found (\d+)/)?.[1] 
-          ? parseInt(leadFinderAgent.result.match(/Found (\d+)/)![1]) 
-          : undefined);
+      
+      // Try to parse "Total candidates: X" from the result string first (which indicates total pool)
+      // Fallback to "Found X" or details array length
+      let leadsFound = undefined;
+      
+      if (leadFinderAgent?.result) {
+         const totalMatch = leadFinderAgent.result.match(/Total candidates: (\d+)/i);
+         const foundMatch = leadFinderAgent.result.match(/Found (\d+)/i);
+         
+         if (totalMatch) {
+            leadsFound = parseInt(totalMatch[1]);
+         } else if (foundMatch) {
+            leadsFound = parseInt(foundMatch[1]);
+         }
+      }
+      
+      if (leadsFound === undefined && leadFinderAgent?.details?.length) {
+         leadsFound = leadFinderAgent.details.length;
+      }
       
       newPanels.push({
         id: 'targets',
@@ -443,19 +532,19 @@ export default function InsightTeaser({ liveDebug }: Props) {
   if (!liveDebug || panels.length === 0) return null;
 
   return (
-    <div className="w-full max-w-[320px]">
-      {/* Carousel container with fixed height */}
+    <div className="w-full h-full flex flex-col">
+      {/* Carousel container filling parent */}
       <div 
         ref={containerRef}
-        className="relative h-[280px] w-full overflow-hidden"
+        className="relative flex-1 w-full overflow-hidden"
       >
         <AnimatePresence mode="popLayout" initial={false}>
           <motion.div
             key={panels[currentIndex]?.id}
-            initial={{ opacity: 0, x: 50 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -50 }}
-            transition={{ duration: 0.3, ease: [0.32, 0.72, 0, 1] }}
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 1.05 }}
+            transition={{ duration: 0.4, ease: [0.32, 0.72, 0, 1] }}
             drag="x"
             dragConstraints={{ left: 0, right: 0 }}
             dragElastic={0.2}
@@ -469,9 +558,9 @@ export default function InsightTeaser({ liveDebug }: Props) {
         </AnimatePresence>
       </div>
 
-      {/* Navigation dots */}
+      {/* Navigation dots - now part of the flex column */}
       {panels.length > 1 && (
-        <div className="flex justify-center gap-1.5 mt-3">
+        <div className="flex justify-center gap-1.5 mt-4 flex-shrink-0">
           {panels.map((panel, i) => (
             <button
               key={panel.id}
@@ -493,7 +582,7 @@ export default function InsightTeaser({ liveDebug }: Props) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 1 }}
-          className="text-center text-xs text-slate-400 mt-2"
+          className="text-center text-xs text-slate-400 mt-2 flex-shrink-0"
         >
           Swipe to see more →
         </motion.p>

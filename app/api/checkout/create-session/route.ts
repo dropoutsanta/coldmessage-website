@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
     // Get origin from request headers (works in single-repo app)
     const origin = request.headers.get('origin') || 'http://localhost:3000';
 
-    // Create Stripe Checkout Session for embedded checkout
+    // Create Stripe Checkout Session for embedded checkout (minimal UI)
     const session = await stripe.checkout.sessions.create({
       ui_mode: 'embedded',
       line_items: [
@@ -36,6 +36,11 @@ export async function POST(request: NextRequest) {
       ],
       mode: 'payment',
       return_url: `${origin}/campaign/${campaignSlug}?session_id={CHECKOUT_SESSION_ID}`,
+      // Minimal checkout options
+      billing_address_collection: 'auto', // Only collect when required by payment method
+      phone_number_collection: { enabled: false },
+      // Disable shipping (not needed for digital product)
+      shipping_address_collection: undefined,
       metadata: {
         campaignSlug,
         campaignId: campaignId || '',

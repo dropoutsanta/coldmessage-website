@@ -4,27 +4,49 @@ import { createAdminClient } from '@/lib/supabase/server';
 
 export async function POST(request: NextRequest) {
   try {
-    const { sessionId, campaignSlug } = await request.json();
+    const body = await request.json();
+    
+    // Support both old sessionId format and new paymentIntentId format
+    const { sessionId, paymentIntentId, campaignSlug, email } = body;
 
-    if (!sessionId) {
+    let customerEmail: string | null = null;
+    let campaignId: string | null = null;
+    let stripeId: string | null = null;
+
+    if (paymentIntentId) {
+      // New Payment Element flow
+      const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+      
+      if (paymentIntent.status !== 'succeeded') {
+        return NextResponse.json(
+          { error: 'Payment not completed' },
+          { status: 400 }
+        );
+      }
+
+      customerEmail = email || paymentIntent.receipt_email;
+      campaignId = paymentIntent.metadata?.campaignId;
+      stripeId = paymentIntentId;
+    } else if (sessionId) {
+      // Legacy Checkout Session flow
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+      if (session.payment_status !== 'paid') {
+        return NextResponse.json(
+          { error: 'Payment not completed' },
+          { status: 400 }
+        );
+      }
+
+      customerEmail = session.customer_details?.email;
+      campaignId = session.metadata?.campaignId;
+      stripeId = sessionId;
+    } else {
       return NextResponse.json(
-        { error: 'Missing session ID' },
+        { error: 'Missing payment identifier' },
         { status: 400 }
       );
     }
-
-    // 1. Retrieve and verify the session from Stripe
-    const session = await stripe.checkout.sessions.retrieve(sessionId);
-
-    if (session.payment_status !== 'paid') {
-      return NextResponse.json(
-        { error: 'Payment not completed' },
-        { status: 400 }
-      );
-    }
-
-    const customerEmail = session.customer_details?.email;
-    const campaignId = session.metadata?.campaignId;
 
     if (!customerEmail) {
       return NextResponse.json(
@@ -36,7 +58,7 @@ export async function POST(request: NextRequest) {
     const supabase = createAdminClient();
     const origin = request.headers.get('origin') || 'http://localhost:3000';
 
-    // 2. Check if user already exists
+    // Check if user already exists
     const { data: existingUsers } = await supabase.auth.admin.listUsers();
     const existingUser = existingUsers?.users?.find(
       (u) => u.email === customerEmail
@@ -48,13 +70,13 @@ export async function POST(request: NextRequest) {
       userId = existingUser.id;
       console.log(`[checkout/complete] User already exists: ${userId}`);
     } else {
-      // 3. Create new user with the Stripe email
+      // Create new user with the email
       const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
         email: customerEmail,
         email_confirm: true,
         user_metadata: {
           source: 'stripe_checkout',
-          stripe_session_id: sessionId,
+          stripe_id: stripeId,
         },
       });
 
@@ -70,14 +92,14 @@ export async function POST(request: NextRequest) {
       console.log(`[checkout/complete] Created new user: ${userId}`);
     }
 
-    // 4. Update campaign with user_id and mark as paid
+    // Update campaign with user_id and mark as paid
     if (campaignId) {
       const { error: updateError } = await supabase
         .from('campaigns')
         .update({
           user_id: userId,
           status: 'paid',
-          stripe_session_id: sessionId,
+          stripe_payment_id: stripeId,
           paid_at: new Date().toISOString(),
         })
         .eq('id', campaignId);
@@ -88,8 +110,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 5. Generate magic link for auto-login
-    // Redirect to auth/callback which will handle the session setup
+    // Generate magic link for auto-login
     const finalDestination = campaignSlug
       ? `/app/campaigns/${campaignSlug}`
       : '/app';
@@ -105,7 +126,6 @@ export async function POST(request: NextRequest) {
 
     if (linkError) {
       console.error('[checkout/complete] Error generating magic link:', linkError);
-      // Return without auto-login link
       return NextResponse.json({
         success: true,
         email: customerEmail,
@@ -114,8 +134,6 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // The action_link contains the magic link URL
-    // We need to extract the token and build our own URL through auth/callback
     const actionLink = linkData.properties?.action_link;
     console.log(`[checkout/complete] Generated auto-login link for ${customerEmail}`);
 
@@ -133,4 +151,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

@@ -219,101 +219,119 @@ export default function DomainEntryForm({ slug, debugMode = false, onCampaignGen
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#F0F9FF] flex items-center justify-center p-6">
+      <div className="min-h-screen bg-[#F0F9FF] flex items-center justify-center p-6 font-sans">
         {/* Background Ambient Glows */}
         <div className="fixed top-0 left-1/4 w-[500px] h-[500px] bg-sky-200/40 rounded-full blur-[100px] pointer-events-none mix-blend-multiply" />
         <div className="fixed bottom-0 right-1/4 w-[600px] h-[600px] bg-cyan-200/40 rounded-full blur-[100px] pointer-events-none mix-blend-multiply" />
 
-        {/* Main Layout: Loader + Insight Teasers */}
-        <div className="relative z-10 w-full max-w-5xl flex flex-col lg:flex-row items-center lg:items-start justify-center gap-6 lg:gap-8">
+        {/* Unified Dynamic Insight Card */}
+        <div className="relative w-full max-w-[420px] aspect-[4/5] z-10">
           
-          {/* Main Loader Card */}
-          <div className={`${debugMode ? 'max-w-xl' : 'max-w-lg'} w-full`}>
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 text-center"
-            >
-              {/* Logo */}
-              <img src="/coldmessage_logo.png" alt="ColdMessage" className="h-20 w-auto mx-auto mb-8 drop-shadow-lg" />
-
-              {/* Animated Loader */}
-              <div className="relative w-24 h-24 mx-auto mb-8">
-                <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                  <circle
-                    cx="50"
-                    cy="50"
-                    r="45"
+          {/* Animated Progress Border */}
+          <div className="absolute -inset-[3px] rounded-[32px] overflow-hidden">
+             {/* Background track */}
+             <div className="absolute inset-0 border-4 border-slate-200/50 rounded-[32px]" />
+             
+             {/* Progress Fill - using Conic Gradient for a "Ring" effect or SVG for path following */}
+             {/* We'll use an SVG for precise path following which looks cleaner */}
+             <svg className="absolute inset-0 w-full h-full transform -rotate-90 drop-shadow-[0_0_15px_rgba(14,165,233,0.3)]">
+               <rect
+                 x="2"
+                 y="2"
+                 width="100%"
+                 height="100%"
+                 rx="30"
                     fill="none"
-                    stroke="#e2e8f0"
-                    strokeWidth="8"
-                  />
-                  <motion.circle
-                    cx="50"
-                    cy="50"
-                    r="45"
-                    fill="none"
-                    stroke="url(#gradient)"
-                    strokeWidth="8"
+                 stroke="url(#progressGradient)"
+                 strokeWidth="4"
                     strokeLinecap="round"
-                    strokeDasharray={283}
-                    strokeDashoffset={283 - (progress / 100) * 283}
+                 // Calculate approximate perimeter for dasharray: (w+h)*2
+                 // We'll use percentage-based pathLength for simplicity if supported, 
+                 // otherwise we use a large enough number and percentage offset.
+                 // pathLength="100" attribute works in most modern browsers for this.
+                 pathLength="100"
+                 strokeDasharray="100"
+                 strokeDashoffset={100 - progress}
+                 className="transition-all duration-300 ease-out w-[calc(100%-4px)] h-[calc(100%-4px)]"
                   />
                   <defs>
-                    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                 <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="100%">
                       <stop offset="0%" stopColor="#0ea5e9" />
-                      <stop offset="100%" stopColor="#06b6d4" />
+                   <stop offset="50%" stopColor="#6366f1" />
+                   <stop offset="100%" stopColor="#ec4899" />
                     </linearGradient>
                   </defs>
                 </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-xl font-bold text-slate-700">{Math.round(progress)}%</span>
-                </div>
-              </div>
-
-              {/* Current Step - Use server status if available */}
-              <AnimatePresence mode="wait">
-                <motion.p
-                  key={serverStatus || currentStep}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="text-lg font-medium text-slate-700 mb-4"
-                >
-                  {serverStatus || loadingSteps[currentStep]?.text}
-                </motion.p>
-              </AnimatePresence>
-
-              {/* Step Progress */}
-              <div className="flex justify-center gap-2 mb-8">
-                {loadingSteps.map((_, i) => (
-                  <div
-                    key={i}
-                    className={`w-2 h-2 rounded-full transition-colors duration-300 ${
-                      i <= currentStep ? 'bg-sky-500' : 'bg-slate-200'
-                    }`}
-                  />
-                ))}
-              </div>
-
-              {/* Estimated Time */}
-              <p className="text-sm text-slate-400">
-                Estimated time remaining: ~{Math.max(0, Math.ceil((100 - progress) / 100 * 2.5))} minutes
-              </p>
-            </motion.div>
-
-            {/* Live Debug Panel - Show during loading in debug mode */}
-            {debugMode && (
-              <LiveDebugPanel liveDebug={liveDebug} isLoading={isLoading} />
-            )}
           </div>
 
-          {/* Insight Teaser Panels - appear on the right as data comes in */}
-          {liveDebug && (
-            <div className="w-full lg:w-[320px] flex-shrink-0">
-              <InsightTeaser liveDebug={liveDebug} />
+          {/* Glass Card Content */}
+          <div className="absolute inset-0 bg-white/90 backdrop-blur-2xl rounded-[28px] shadow-2xl overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="px-6 py-5 border-b border-slate-100/50 flex items-center justify-between bg-white/50">
+              <img src="/coldmessage_logo.png" alt="ColdMessage" className="h-6 w-auto opacity-80" />
+              <div className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  {serverStatusType === 'complete' ? 'Finalizing' : 'Processing'}
+                </span>
+              </div>
             </div>
+
+            {/* Main Content Area - Insight Teaser */}
+            <div className="flex-1 p-2 relative overflow-hidden flex flex-col">
+               {/* Pass data to InsightTeaser. If no liveDebug yet, we construct a temporary one 
+                   so InsightTeaser can render the "Website Scraper" (first step) state. */}
+               <InsightTeaser 
+                 liveDebug={liveDebug || {
+                   currentAgent: 'Website Scraper',
+                   completedAgents: [],
+                   logs: [],
+                   projectId: '',
+                   domain: domain
+                 }} 
+               />
+            </div>
+
+            {/* Footer Status */}
+            <div className="px-6 py-4 bg-slate-50/80 border-t border-slate-100 flex flex-col gap-2">
+              <div className="flex justify-between items-end mb-1">
+                <div>
+                   <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">Current Step</p>
+                   <p className="text-sm font-semibold text-slate-700">
+                     {serverStatus || loadingSteps[currentStep]?.text || 'Initializing...'}
+                   </p>
+                </div>
+                <span className="text-2xl font-bold text-slate-900 tabular-nums">
+                  {Math.round(progress)}%
+                </span>
+              </div>
+
+              {/* Mini progress bar for step granularity */}
+              <div className="h-1 w-full bg-slate-200 rounded-full overflow-hidden">
+                <motion.div 
+                  className="h-full bg-sky-500"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${progress}%` }}
+                  />
+              </div>
+
+              <p className="text-[10px] text-center text-slate-400 mt-2 font-medium">
+                Estimated time: ~{Math.max(0, Math.ceil((100 - progress) / 100 * 2.5))} minutes
+              </p>
+            </div>
+          </div>
+
+          {/* Debug Panel Toggle / View (if enabled) */}
+          {debugMode && (
+             <motion.div 
+               initial={{ opacity: 0, y: 10 }}
+               animate={{ opacity: 1, y: 0 }}
+               className="absolute top-full left-0 right-0 mt-4"
+             >
+               <LiveDebugPanel liveDebug={liveDebug} isLoading={isLoading} />
+             </motion.div>
           )}
+
         </div>
       </div>
     );

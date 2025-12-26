@@ -3,6 +3,19 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LiveDebugData, LiveAgentResult } from '@/lib/services/campaignGenerator';
+import { 
+  Globe, 
+  Building2, 
+  BrainCircuit, 
+  Mail, 
+  Filter, 
+  Search, 
+  PenTool, 
+  Check, 
+  ChevronRight, 
+  ChevronDown,
+  Microscope
+} from 'lucide-react';
 
 interface Props {
   liveDebug: LiveDebugData | null;
@@ -106,13 +119,13 @@ export default function LiveDebugPanel({ liveDebug, isLoading }: Props) {
 
   // All possible agents in order
   const allAgents = [
-    { name: 'Website Scraper', icon: '🌐', description: 'Analyzing website content' },
-    { name: 'Company Profiler', icon: '🏢', description: 'Understanding the business' },
-    { name: 'ICP Brainstormer', icon: '🧠', description: 'Generating buyer personas' },
-    { name: 'Cold Email Ranker', icon: '📧', description: 'Evaluating response likelihood' },
-    { name: 'LinkedIn Filter Builder', icon: '🔗', description: 'Building search filters' },
-    { name: 'Lead Finder', icon: '🔎', description: 'Searching for leads' },
-    { name: 'Email Writer', icon: '✍️', description: 'Crafting personalized emails' },
+    { name: 'Website Scraper', icon: <Globe className="w-4 h-4" />, description: 'Analyzing website content' },
+    { name: 'Company Profiler', icon: <Building2 className="w-4 h-4" />, description: 'Understanding the business' },
+    { name: 'ICP Brainstormer', icon: <BrainCircuit className="w-4 h-4" />, description: 'Generating buyer personas' },
+    { name: 'Cold Email Ranker', icon: <Mail className="w-4 h-4" />, description: 'Evaluating response likelihood' },
+    { name: 'LinkedIn Filter Builder', icon: <Filter className="w-4 h-4" />, description: 'Building search filters' },
+    { name: 'Lead Finder', icon: <Search className="w-4 h-4" />, description: 'Searching for leads' },
+    { name: 'Email Writer', icon: <PenTool className="w-4 h-4" />, description: 'Crafting personalized emails' },
   ];
 
   const completedNames = new Set(liveDebug.completedAgents.map(a => a.name));
@@ -126,7 +139,7 @@ export default function LiveDebugPanel({ liveDebug, isLoading }: Props) {
       {/* Header */}
       <div className="bg-slate-800 px-4 py-3 border-b border-slate-700 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-amber-400">🔬</span>
+          <Microscope className="w-4 h-4 text-amber-400" />
           <h3 className="font-semibold text-white text-sm">Live Agent Pipeline</h3>
         </div>
         {isLoading && (
@@ -172,18 +185,18 @@ export default function LiveDebugPanel({ liveDebug, isLoading }: Props) {
                 {/* Icon */}
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-lg ${
                   isCurrent
-                    ? 'bg-amber-500/20'
+                    ? 'bg-amber-500/20 text-amber-400'
                     : isComplete
-                    ? 'bg-emerald-500/20'
-                    : 'bg-slate-700/50'
+                    ? 'bg-emerald-500/20 text-emerald-400'
+                    : 'bg-slate-700/50 text-slate-500'
                 }`}>
                   {isCurrent ? (
-                    <motion.span
+                    <motion.div
                       animate={{ scale: [1, 1.2, 1] }}
                       transition={{ repeat: Infinity, duration: 1.5 }}
                     >
                       {agent.icon}
-                    </motion.span>
+                    </motion.div>
                   ) : (
                     agent.icon
                   )}
@@ -203,11 +216,11 @@ export default function LiveDebugPanel({ liveDebug, isLoading }: Props) {
                       </span>
                     )}
                     {isComplete && (
-                      <span className="text-emerald-400 text-xs">✓</span>
+                      <Check className="w-3 h-3 text-emerald-400" />
                     )}
                     {hasDebugData && (
-                      <span className="text-slate-500 text-xs">
-                        {isExpanded ? '▼' : '▶'} details
+                      <span className="text-slate-500 text-xs flex items-center gap-1">
+                        {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />} details
                       </span>
                     )}
                   </div>
