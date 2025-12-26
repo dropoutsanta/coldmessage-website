@@ -10,6 +10,9 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
+    "@stripe/react-stripe-js": "^5.4.1",
+    "@stripe/stripe-js": "^8.6.0",
+    "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.89.0",
     "apify-client": "^2.11.0",
     "clsx": "^2.1.1",
@@ -19,6 +22,8 @@
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "react-simple-maps": "^3.0.0",
+    "react-snowfall": "^2.4.0",
+    "stripe": "^20.1.0",
     "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {

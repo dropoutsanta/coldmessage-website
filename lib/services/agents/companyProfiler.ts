@@ -149,9 +149,11 @@ Respond with ONLY valid JSON in this exact format:
 
 Be factual. If something isn't clear from the website, say "unknown" or leave the array empty. For geography, always provide your best assessment with appropriate confidence level.`;
 
-  const message = await anthropic.messages.create({
+  // Use streaming to avoid timeout errors with high max_tokens
+  let responseText = '';
+  const stream = anthropic.messages.stream({
     model: 'claude-sonnet-4-20250514',
-    max_tokens: 200000,
+    max_tokens: 100000,
     messages: [
       {
         role: 'user',
@@ -160,7 +162,11 @@ Be factual. If something isn't clear from the website, say "unknown" or leave th
     ],
   });
 
-  const responseText = message.content[0].type === 'text' ? message.content[0].text : '';
+  for await (const event of stream) {
+    if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+      responseText += event.delta.text;
+    }
+  }
   
   const jsonMatch = responseText.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {

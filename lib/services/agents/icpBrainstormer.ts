@@ -162,9 +162,11 @@ Respond with ONLY valid JSON:
 
 Be opinionated. Each persona should represent ONE clear role archetype with tight title variations.`;
 
-  const message = await anthropic.messages.create({
+  // Use streaming to avoid timeout errors with high max_tokens
+  let responseText = '';
+  const stream = anthropic.messages.stream({
     model: 'claude-sonnet-4-20250514',
-    max_tokens: 200000,
+    max_tokens: 100000,
     messages: [
       {
         role: 'user',
@@ -173,7 +175,11 @@ Be opinionated. Each persona should represent ONE clear role archetype with tigh
     ],
   });
 
-  const responseText = message.content[0].type === 'text' ? message.content[0].text : '';
+  for await (const event of stream) {
+    if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+      responseText += event.delta.text;
+    }
+  }
   
   const jsonMatch = responseText.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {

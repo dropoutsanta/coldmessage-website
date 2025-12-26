@@ -1,8 +1,9 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #0a0a0f;
+  --foreground: #ffffff;
 }
 
 @theme inline {
@@ -13,5 +14,125 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Outfit', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
+
+/* Custom scrollbar for dark theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0a0a0f;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2a2a35;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3a3a45;
+}
+
+/* Selection */
+::selection {
+  background: rgba(6, 182, 212, 0.3);
+  color: #164e63;
+}
+
+/* Range input styling */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(to right, #10b981, #06b6d4);
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #ffffff;
+  margin-top: -6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+input[type="range"]::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(to right, #10b981, #06b6d4);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Smooth animations */
+* {
+  scroll-behavior: smooth;
+}
+
+/* Focus states - only for buttons, inputs handle their own focus styling */
+button:focus-visible {
+  outline: 2px solid #06b6d4;
+  outline-offset: 2px;
+}
+
+input:focus-visible {
+  outline: none;
+}
+
+/* Frost forming transition for interactive cards */
+.frost-interactive {
+  --frost-bg-opacity: 0.3;
+  --frost-border-opacity: 0.4;
+  --frost-ring-opacity: 0.3;
+  --frost-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.05);
+  --frost-blur: blur(24px);
+  
+  cursor: pointer;
+  background-color: rgba(255, 255, 255, var(--frost-bg-opacity));
+  border-color: rgba(255, 255, 255, var(--frost-border-opacity));
+  box-shadow: var(--frost-shadow);
+  backdrop-filter: var(--frost-blur);
+  border-width: 1px;
+  border-style: solid;
+  
+  transition: 
+    background-color 600ms ease-in-out,
+    border-color 600ms ease-in-out,
+    box-shadow 600ms ease-in-out,
+    backdrop-filter 600ms ease-in-out;
+}
+
+.frost-interactive:hover {
+  --frost-bg-opacity: 0.6;
+  --frost-border-opacity: 0.8;
+  --frost-ring-opacity: 0.6;
+  --frost-shadow: 0 15px 40px 0 rgba(31, 38, 135, 0.15);
+  --frost-blur: blur(32px);
+}
+
+.frost-interactive.frost-recommended {
+  --frost-bg-opacity: 0.6;
+  --frost-shadow: 0 8px 32px 0 rgba(6, 182, 212, 0.15);
+  border-color: rgba(186, 230, 253, 0.5);
+}
+

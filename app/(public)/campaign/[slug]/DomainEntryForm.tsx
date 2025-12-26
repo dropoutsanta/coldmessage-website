@@ -168,11 +168,18 @@ export default function DomainEntryForm({ slug, debugMode = false, onCampaignGen
     try {
       // Start the API call with debug mode if enabled
       // API will generate unique incremental slug (e.g., dynamicmockups-2)
-      const response = await fetch('/api/generate-campaign', {
+      const apiPromise = fetch('/api/generate-campaign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ domain: cleanDomain, debug: debugMode }),
       });
+
+      // Minimum loading time (8 seconds) so users can see the insight panels
+      // even if the API responds quickly or fails with demo fallback
+      const minimumLoadingTime = new Promise(resolve => setTimeout(resolve, 8000));
+
+      // Wait for both the API and minimum time
+      const [response] = await Promise.all([apiPromise, minimumLoadingTime]);
 
       if (!response.ok) {
         throw new Error('Failed to generate campaign');
@@ -181,16 +188,19 @@ export default function DomainEntryForm({ slug, debugMode = false, onCampaignGen
       const data = await response.json();
       
       if (data.success && data.campaign && data.slug) {
+        // Brief pause to show 100% completion before redirect
+        setProgress(100);
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
         // Redirect to the domain-based slug
         // The redirect will cause a fresh page load that fetches from Supabase
         // with proper snake_case -> camelCase transformation.
-        // Do NOT call onCampaignGenerated here with raw API data (snake_case format)
-        // as it would cause CampaignPage to render with malformed data before redirect completes.
         router.replace(`/campaign/${data.slug}`);
       } else {
         throw new Error(data.error || 'Unknown error');
       }
-    } catch {
+    } catch (err) {
+      console.error('[DomainEntryForm] Campaign generation error:', err);
       setError('Something went wrong. Please try again.');
       setIsLoading(false);
     }

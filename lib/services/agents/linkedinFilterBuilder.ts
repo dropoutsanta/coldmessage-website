@@ -198,9 +198,11 @@ Respond with ONLY valid JSON:
 
 Use the EXACT IDs from the reference above. If an industry or location isn't listed, use your knowledge of LinkedIn's ID system.`;
 
-  const message = await anthropic.messages.create({
+  // Use streaming to avoid timeout errors with high max_tokens
+  let responseText = '';
+  const stream = anthropic.messages.stream({
     model: 'claude-sonnet-4-20250514',
-    max_tokens: 200000,
+    max_tokens: 100000,
     messages: [
       {
         role: 'user',
@@ -209,7 +211,11 @@ Use the EXACT IDs from the reference above. If an industry or location isn't lis
     ],
   });
 
-  const responseText = message.content[0].type === 'text' ? message.content[0].text : '';
+  for await (const event of stream) {
+    if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+      responseText += event.delta.text;
+    }
+  }
   
   const jsonMatch = responseText.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
