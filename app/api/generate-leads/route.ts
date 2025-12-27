@@ -5,6 +5,7 @@ import { shouldUseArk } from '@/lib/services/arkLeadFinder';
 import { generateEmailForLead } from '@/lib/services/emailWriter';
 import { CompanyProfile } from '@/lib/services/agents/companyProfiler';
 import { ICPPersona } from '@/lib/services/agents/icpBrainstormer';
+import { emailBisonClient } from '@/lib/services/emailbison';
 
 interface GenerateLeadsRequest {
   campaignId: string;
@@ -212,7 +213,98 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 6. Update campaign status to ready
+    // 6. Create EmailBison campaign and upload leads
+    let emailbisonCampaignId: string | null = null;
+    const leadsWithEmailAddresses = leads.filter(l => l.email);
+    
+    if (leadsWithEmailAddresses.length > 0) {
+      try {
+        console.log(`[generate-leads] Creating EmailBison campaign for ${leadsWithEmailAddresses.length} leads with emails...`);
+        
+        // Create campaign in EmailBison
+        const campaignName = `ColdMessage - ${campaign.company_name} - ${campaign.slug}`;
+        const ebCampaign = await emailBisonClient.createCampaign(campaignName);
+        emailbisonCampaignId = ebCampaign.campaign_id;
+        
+        console.log(`[generate-leads] EmailBison campaign created: ${emailbisonCampaignId}`);
+        
+        // Update campaign with EmailBison ID
+        await supabase
+          .from('campaigns')
+          .update({
+            emailbison_campaign_id: emailbisonCampaignId,
+            emailbison_status: 'draft',
+          })
+          .eq('id', campaignId);
+        
+        // Add sequence step (use first lead's email template)
+        const firstLead = leads[0];
+        if (firstLead) {
+          // Generate email for first lead to get template
+          const emailContent = await generateEmailForLead(firstLead, companyInfo, 'Bella', emailContext);
+          
+          await emailBisonClient.addSequenceSteps(emailbisonCampaignId, {
+            title: 'Initial Outreach',
+            sequence_steps: [
+              {
+                email_subject: emailContent.emailSubject,
+                email_body: emailContent.emailBody,
+                wait_in_days: 0,
+              },
+            ],
+          });
+          console.log(`[generate-leads] Added sequence step to EmailBison campaign`);
+        }
+        
+        // Fetch inserted leads with their IDs to map back
+        const { data: insertedLeads } = await supabase
+          .from('leads')
+          .select('id, email, first_name, last_name, company, title, linkedin_url, why_picked, email_subject, email_body')
+          .eq('campaign_id', campaignId)
+          .not('email', 'is', null);
+        
+        if (insertedLeads && insertedLeads.length > 0) {
+          // Upload leads to EmailBison
+          const ebLeads = insertedLeads.map(lead => ({
+            email: lead.email!,
+            first_name: lead.first_name,
+            last_name: lead.last_name,
+            company: lead.company,
+            title: lead.title,
+            custom_fields: {
+              email_subject: lead.email_subject || '',
+              email_body: lead.email_body || '',
+              linkedin_url: lead.linkedin_url || '',
+              why_picked: lead.why_picked || '',
+            },
+          }));
+          
+          const uploadResponse = await emailBisonClient.uploadLeads(emailbisonCampaignId, ebLeads);
+          console.log(`[generate-leads] Uploaded ${uploadResponse.uploaded || ebLeads.length} leads to EmailBison`);
+          
+          // Map EmailBison lead IDs back to our leads
+          if (uploadResponse.lead_ids) {
+            for (let i = 0; i < uploadResponse.lead_ids.length && i < insertedLeads.length; i++) {
+              await supabase
+                .from('leads')
+                .update({ emailbison_lead_id: uploadResponse.lead_ids[i] })
+                .eq('id', insertedLeads[i].id);
+            }
+          }
+        }
+        
+        // Note: NOT resuming campaign - sender accounts need to be assigned first
+        console.log(`[generate-leads] EmailBison campaign ready (pending sender assignment)`);
+        
+      } catch (ebError) {
+        console.error('[generate-leads] Error creating EmailBison campaign:', ebError);
+        // Don't fail the whole request - leads are already created
+      }
+    } else {
+      console.log(`[generate-leads] No leads with email addresses - skipping EmailBison`);
+    }
+
+    // 7. Update campaign status to ready
     const { error: updateError } = await supabase
       .from('campaigns')
       .update({ status: 'ready' })
@@ -228,6 +320,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       leadsGenerated: totalInserted,
+      leadsWithEmails: leadsWithEmailAddresses.length,
+      emailbisonCampaignId,
       durationSeconds: parseFloat(elapsed),
     });
   } catch (error) {
