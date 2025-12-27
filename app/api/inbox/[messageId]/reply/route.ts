@@ -9,7 +9,7 @@ export async function POST(
   try {
     const supabase = await createClient();
     const { messageId } = await params;
-    const { body: replyBody } = await request.json();
+    const { body: replyBody, senderEmailId } = await request.json();
 
     if (!replyBody || !replyBody.trim()) {
       return NextResponse.json(
@@ -32,15 +32,41 @@ export async function POST(
       );
     }
 
-    if (!message.emailbison_thread_id) {
+    // EmailBison uses reply_id (the message ID) not thread_id
+    const replyId = message.emailbison_reply_id || message.emailbison_thread_id;
+    if (!replyId) {
       return NextResponse.json(
-        { error: 'Thread ID not found - cannot send reply' },
+        { error: 'Reply ID not found - cannot send reply' },
         { status: 400 }
       );
     }
 
+    // Get sender email ID - either from request or campaign settings
+    // TODO: Store sender_email_id on campaign when it's configured in EmailBison
+    const senderEmailIdToUse = senderEmailId || message.campaigns?.emailbison_sender_email_id;
+    if (!senderEmailIdToUse) {
+      return NextResponse.json(
+        { error: 'Sender email ID not configured - please set up sender in EmailBison' },
+        { status: 400 }
+      );
+    }
+
+    // Build recipient info from the original message
+    const toEmails = [{
+      name: message.leads?.first_name 
+        ? `${message.leads.first_name} ${message.leads.last_name || ''}`.trim()
+        : 'Recipient',
+      email_address: message.from_email,
+    }];
+
     // Send reply via EmailBison API
-    await emailBisonClient.sendReply(message.emailbison_thread_id, replyBody);
+    await emailBisonClient.sendReply(
+      replyId,
+      replyBody,
+      senderEmailIdToUse,
+      toEmails,
+      'html'
+    );
 
     // Insert outbound message into inbox_messages
     const { data: outboundMessage, error: insertError } = await supabase

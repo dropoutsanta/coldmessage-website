@@ -1,6 +1,6 @@
 // Icypeas API Types
 
-export type IcypeasSearchStatus = 'NONE' | 'SCHEDULED' | 'IN_PROGRESS' | 'DEBITED';
+export type IcypeasSearchStatus = 'NONE' | 'SCHEDULED' | 'IN_PROGRESS' | 'FOUND' | 'NOT_FOUND' | 'DEBITED';
 
 export interface IcypeasEmailSearchRequest {
   firstname: string;
@@ -8,23 +8,47 @@ export interface IcypeasEmailSearchRequest {
   domainOrCompany: string;
 }
 
-export interface IcypeasEmailSearchResponse {
+export interface IcypeasEmailSearchItem {
   _id: string;
   status: IcypeasSearchStatus;
-  email?: string;
-  firstname?: string;
-  lastname?: string;
-  domainOrCompany?: string;
-  [key: string]: unknown; // Allow for additional fields
+}
+
+export interface IcypeasEmailSearchResponse {
+  success: boolean;
+  item: IcypeasEmailSearchItem;
+}
+
+export interface IcypeasEmailResult {
+  email: string;
+  certainty: string;
+  mxRecords?: string[];
+  mxProvider?: string;
+}
+
+export interface IcypeasSearchResultItem {
+  _id: string;
+  status: IcypeasSearchStatus;
+  results?: {
+    firstname?: string;
+    lastname?: string;
+    fullname?: string;
+    emails?: IcypeasEmailResult[];
+    phones?: unknown[];
+  };
+  userData?: {
+    webhookUrl?: string;
+    externalId?: string;
+    provider?: string;
+  };
+  system?: {
+    createdAt?: string;
+    modifiedAt?: string;
+  };
 }
 
 export interface IcypeasSearchResultResponse {
-  id: string;
-  status: IcypeasSearchStatus;
-  email?: string;
-  firstname?: string;
-  lastname?: string;
-  domainOrCompany?: string;
-  [key: string]: unknown; // Allow for additional fields
+  success: boolean;
+  items?: IcypeasSearchResultItem[];
+  total?: number;
 }
 

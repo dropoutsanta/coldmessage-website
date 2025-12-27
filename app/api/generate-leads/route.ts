@@ -13,18 +13,24 @@ interface GenerateLeadsRequest {
 }
 
 /**
- * Get the number of leads to generate.
- * Uses LEADS_COUNT_OVERRIDE env var for testing, otherwise uses the requested count.
+ * Get the number of leads to generate for post-purchase lead generation.
+ * 
+ * Environment variables:
+ * - POST_CHECKOUT_LEADS_MAX: Caps the maximum leads for post-purchase generation
+ *   (e.g., set to 10 during testing to save API credits)
+ * 
+ * Note: LEADS_COUNT_OVERRIDE is for PRE-purchase preview in campaignGenerator.ts
  */
-function getLeadsCount(requestedCount: number): number {
-  const override = process.env.LEADS_COUNT_OVERRIDE;
-  if (override) {
-    const parsed = parseInt(override, 10);
-    if (!isNaN(parsed) && parsed > 0) {
-      console.log(`[generate-leads] Using LEADS_COUNT_OVERRIDE: ${parsed} (requested: ${requestedCount})`);
+function getPostCheckoutLeadsCount(requestedCount: number): number {
+  const maxCap = process.env.POST_CHECKOUT_LEADS_MAX;
+  if (maxCap) {
+    const parsed = parseInt(maxCap, 10);
+    if (!isNaN(parsed) && parsed > 0 && requestedCount > parsed) {
+      console.log(`[generate-leads] Capping to POST_CHECKOUT_LEADS_MAX: ${parsed} (requested: ${requestedCount})`);
       return parsed;
     }
   }
+  
   return requestedCount;
 }
 
@@ -65,8 +71,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Apply env override for testing (e.g., LEADS_COUNT_OVERRIDE=5)
-    const leadsCount = getLeadsCount(requestedLeadsCount);
+    // Apply POST_CHECKOUT_LEADS_MAX cap if set (for testing to save API credits)
+    const leadsCount = getPostCheckoutLeadsCount(requestedLeadsCount);
 
     console.log(`[generate-leads] Starting lead generation for campaign ${campaignId} (${leadsCount} leads)`);
 

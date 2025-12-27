@@ -274,13 +274,46 @@ export async function findLeadsWithEmails(
   const enrichedLeads: LinkedInLead[] = [];
   let page = 0;
   let totalPages = 1;
+  let totalLeadsFetched = 0;
+  let consecutiveEmptyBatches = 0;
   
   // Smart batch sizing: request ~2x target to account for email discovery rate (~50%)
   // but cap at 100 (AI Ark max). For small targets, don't over-fetch.
   const batchSize = Math.min(100, Math.max(10, targetCount * 2));
-  console.log(`[LeadFinder] Batch size: ${batchSize} (target: ${targetCount})`);
+  
+  // Safety limits to prevent runaway API calls
+  const MAX_PAGES = 10;  // Never fetch more than 10 pages
+  const MAX_EMPTY_BATCHES = 3;  // Stop if 3 consecutive batches have 0 emails
+  
+  // ABSOLUTE HARD CAP - prevents runaway costs regardless of targetCount
+  // Default 200 leads from AI Ark = ~$6 at $0.03/lead
+  // Override with MAX_ARK_LEADS env var
+  const ABSOLUTE_MAX_ARK_LEADS = process.env.MAX_ARK_LEADS 
+    ? parseInt(process.env.MAX_ARK_LEADS, 10) 
+    : 200;
+  const MAX_LEADS = Math.min(ABSOLUTE_MAX_ARK_LEADS, targetCount * 10);
+  
+  console.log(`[LeadFinder] Batch size: ${batchSize} (target: ${targetCount}, max AI Ark leads: ${MAX_LEADS}, max pages: ${MAX_PAGES})`);
 
   while (enrichedLeads.length < targetCount && page < totalPages) {
+    // Safety check: max pages
+    if (page >= MAX_PAGES) {
+      console.warn(`[LeadFinder] ⚠️ Hit MAX_PAGES limit (${MAX_PAGES}). Stopping to prevent runaway API calls.`);
+      break;
+    }
+    
+    // Safety check: max leads fetched
+    if (totalLeadsFetched >= MAX_LEADS) {
+      console.warn(`[LeadFinder] ⚠️ Hit MAX_LEADS limit (${MAX_LEADS}). Stopping to prevent runaway API calls.`);
+      break;
+    }
+    
+    // Safety check: consecutive empty batches (Icypeas probably down or out of credits)
+    if (consecutiveEmptyBatches >= MAX_EMPTY_BATCHES) {
+      console.warn(`[LeadFinder] ⚠️ ${MAX_EMPTY_BATCHES} consecutive batches with 0 emails. Icypeas may be down or out of credits. Stopping.`);
+      break;
+    }
+    
     console.log(`[LeadFinder] Fetching page ${page} from AI Ark (${enrichedLeads.length}/${targetCount} leads with emails so far)...`);
 
     // 1. Fetch batch from AI Ark
@@ -290,6 +323,8 @@ export async function findLeadsWithEmails(
       console.warn(`[LeadFinder] No leads returned from AI Ark at page ${page}. Stopping.`);
       break;
     }
+    
+    totalLeadsFetched += batch.leads.length;
 
     // Update totalPages from response
     if (batch.totalPages !== undefined) {
@@ -304,6 +339,13 @@ export async function findLeadsWithEmails(
     // 3. Keep only leads with emails
     const withEmails = enriched.filter(lead => lead.email);
     console.log(`[LeadFinder] Found emails for ${withEmails.length}/${batch.leads.length} leads in this batch`);
+    
+    // Track consecutive empty batches
+    if (withEmails.length === 0) {
+      consecutiveEmptyBatches++;
+    } else {
+      consecutiveEmptyBatches = 0;  // Reset counter
+    }
 
     enrichedLeads.push(...withEmails);
 
@@ -321,6 +363,11 @@ export async function findLeadsWithEmails(
 
     page++;
   }
+  
+  // Estimated costs: AI Ark ~$0.03/lead, Icypeas ~$0.01/lookup
+  const estimatedArkCost = (totalLeadsFetched * 0.03).toFixed(2);
+  const estimatedIcypeasCost = (totalLeadsFetched * 0.01).toFixed(2);
+  console.log(`[LeadFinder] Summary: Fetched ${totalLeadsFetched} leads from AI Ark (~$${estimatedArkCost}), ${enrichedLeads.length} with emails. Icypeas lookups: ${totalLeadsFetched} (~$${estimatedIcypeasCost})`);
 
   // Return capped at target count
   const finalLeads = enrichedLeads.slice(0, targetCount);

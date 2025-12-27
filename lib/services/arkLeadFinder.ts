@@ -104,6 +104,7 @@ interface ArkPerson {
     link?: {
       website?: string;
       domain?: string;
+      domain_ltd?: string;  // Clean domain format (e.g., "benco.com")
       linkedin?: string;
     };
     location?: {
@@ -243,16 +244,30 @@ function normalizeToLinkedInLead(person: ArkPerson): LinkedInLead {
   const profileId = profileIdMatch?.[1] || person.identifier || person.id || '';
   
   // Extract company domain for email enrichment
-  // Priority: company.link.domain > extract from company.link.website > company.summary.name
+  // Priority: company.link.domain_ltd > company.link.domain > extract from company.link.website
+  // IMPORTANT: Clean the domain to remove protocol and www prefix for Icypeas
   let companyDomain: string | undefined;
-  if (person.company?.link?.domain) {
-    companyDomain = person.company.link.domain.toLowerCase();
+  
+  // Helper to clean domain string
+  const cleanDomain = (d: string): string => {
+    return d
+      .replace(/^https?:\/\//, '')  // Remove http:// or https://
+      .replace(/^www\./, '')         // Remove www.
+      .split('/')[0]                 // Remove any path
+      .toLowerCase();
+  };
+  
+  if (person.company?.link?.domain_ltd) {
+    // domain_ltd is usually the cleanest format (e.g., "benco.com")
+    companyDomain = cleanDomain(person.company.link.domain_ltd);
+  } else if (person.company?.link?.domain) {
+    companyDomain = cleanDomain(person.company.link.domain);
   } else if (person.company?.link?.website) {
     try {
       const url = new URL(person.company.link.website.startsWith('http') ? person.company.link.website : `https://${person.company.link.website}`);
       companyDomain = url.hostname.replace(/^www\./, '').toLowerCase();
     } catch {
-      // Invalid URL, fall through to company name
+      // Invalid URL, fall through
     }
   }
   // If no domain found, we'll use company name as fallback in enrichment

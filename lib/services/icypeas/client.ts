@@ -110,16 +110,14 @@ class IcypeasClient {
     try {
       // Initiate search
       const searchResponse = await this.searchEmail(firstname, lastname, domainOrCompany);
-      const searchId = searchResponse._id;
+      
+      // API returns { success: true, item: { _id: "...", status: "NONE" } }
+      const searchId = searchResponse.item?._id;
 
       if (!searchId) {
-        console.warn(`[Icypeas] No search ID returned for ${firstname} ${lastname} at ${domainOrCompany}`);
+        // Log full response for debugging - could indicate credits exhausted or API error
+        console.warn(`[Icypeas] No search ID returned for ${firstname} ${lastname} at ${domainOrCompany}. Response:`, JSON.stringify(searchResponse));
         return null;
-      }
-
-      // If already complete, return email
-      if (searchResponse.status === 'DEBITED' && searchResponse.email) {
-        return searchResponse.email;
       }
 
       // Poll for results
@@ -127,22 +125,37 @@ class IcypeasClient {
         await new Promise(resolve => setTimeout(resolve, pollDelayMs));
 
         const result = await this.getSearchResult(searchId);
+        
+        // API returns { success: true, items: [{ _id, status, results: { emails: [{email, certainty}] } }] }
+        const item = result.items?.[0];
+        
+        if (!item) {
+          console.warn(`[Icypeas] No item in poll response for ${firstname} ${lastname} at ${domainOrCompany}`);
+          continue;
+        }
 
-        if (result.status === 'DEBITED') {
-          if (result.email) {
-            return result.email;
+        // FOUND or NOT_FOUND means search is complete
+        if (item.status === 'FOUND') {
+          const email = item.results?.emails?.[0]?.email;
+          if (email) {
+            return email;
           }
-          // Status is DEBITED but no email - search completed but email not found
+          // Status is FOUND but no email in results
+          return null;
+        }
+        
+        if (item.status === 'NOT_FOUND') {
+          // Search completed but no email found
           return null;
         }
 
         // If still processing, continue polling
-        if (result.status === 'NONE' || result.status === 'SCHEDULED' || result.status === 'IN_PROGRESS') {
+        if (item.status === 'NONE' || item.status === 'SCHEDULED' || item.status === 'IN_PROGRESS') {
           continue;
         }
 
         // Unknown status, assume failure
-        console.warn(`[Icypeas] Unknown status "${result.status}" for ${firstname} ${lastname} at ${domainOrCompany}`);
+        console.warn(`[Icypeas] Unknown status "${item.status}" for ${firstname} ${lastname} at ${domainOrCompany}`);
         return null;
       }
 

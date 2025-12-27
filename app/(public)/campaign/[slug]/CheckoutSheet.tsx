@@ -257,6 +257,7 @@ export default function CheckoutSheet({
           paymentIntentId,
           campaignSlug: campaign.slug,
           email,
+          origin: window.location.origin, // Pass origin for correct redirect
         }),
       });
 

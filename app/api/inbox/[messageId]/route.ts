@@ -39,7 +39,7 @@ export async function GET(
       );
     }
 
-    // Get thread (all messages in the same thread)
+    // Get thread (messages in the same thread AND same campaign)
     let threadQuery = supabase
       .from('inbox_messages')
       .select(`
@@ -53,12 +53,14 @@ export async function GET(
           title
         )
       `)
+      .eq('campaign_id', message.campaign_id) // Always filter by campaign
       .order('received_at', { ascending: true });
 
     if (message.emailbison_thread_id) {
+      // If we have a thread ID, use it for thread grouping within the campaign
       threadQuery = threadQuery.eq('emailbison_thread_id', message.emailbison_thread_id);
     } else {
-      // Fallback: get messages for same lead
+      // Fallback: get messages for same lead within the same campaign
       threadQuery = threadQuery.eq('lead_id', message.lead_id);
     }
 

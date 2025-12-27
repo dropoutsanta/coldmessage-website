@@ -300,14 +300,17 @@ export async function generateCampaign(
         });
 
         // PRE-CHECKOUT PREVIEW MODE:
-        // - Only fetch 5 leads for the preview
+        // - Only fetch a few leads for the preview (default: 5)
         // - NO email enrichment (save Icypeas credits)
         // - Full lead generation + email verification happens AFTER payment in /api/generate-leads
+        // 
+        // Use LEADS_COUNT_OVERRIDE env var to control pre-purchase preview count
+        const DEFAULT_PREVIEW_COUNT = 5;
         const previewCount = process.env.LEADS_COUNT_OVERRIDE 
-          ? parseInt(process.env.LEADS_COUNT_OVERRIDE, 10) 
-          : 5;
+          ? parseInt(process.env.LEADS_COUNT_OVERRIDE, 10) || DEFAULT_PREVIEW_COUNT
+          : DEFAULT_PREVIEW_COUNT;
         
-        console.log(`[CampaignGenerator] Preview mode: fetching ${previewCount} leads (no email enrichment)`);
+        console.log(`[CampaignGenerator] Pre-purchase preview: fetching ${previewCount} leads (no email enrichment)`);
         
         let results;
         if (useArk) {

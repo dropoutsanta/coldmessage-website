@@ -7,7 +7,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     
     // Support both old sessionId format and new paymentIntentId format
-    const { sessionId, paymentIntentId, campaignSlug, email } = body;
+    const { sessionId, paymentIntentId, campaignSlug, email, origin: clientOrigin } = body;
 
     let customerEmail: string | null = null;
     let campaignId: string | null = null;
@@ -62,10 +62,10 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createAdminClient();
-    // Get origin from the request URL itself
-    const origin = request.nextUrl.origin;
-    console.log('[checkout/complete] Detected origin:', origin);
-    console.log('[checkout/complete] Request URL:', request.nextUrl.href);
+    // Use client-provided origin (most reliable) or fall back to request origin
+    const origin = clientOrigin || request.nextUrl.origin;
+    console.log('[checkout/complete] Using origin:', origin);
+    console.log('[checkout/complete] Client origin:', clientOrigin, '| Request origin:', request.nextUrl.origin);
 
     // 1. Check if user already exists
     const { data: existingUsers } = await supabase.auth.admin.listUsers();

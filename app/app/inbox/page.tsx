@@ -50,6 +50,12 @@ interface ThreadMessage extends InboxMessage {
   direction: 'inbound' | 'outbound';
 }
 
+interface Campaign {
+  id: string;
+  slug: string;
+  company_name: string;
+}
+
 export default function InboxPage() {
   const [messages, setMessages] = useState<InboxMessage[]>([]);
   const [selectedMessage, setSelectedMessage] = useState<InboxMessage | null>(null);
@@ -60,10 +66,36 @@ export default function InboxPage() {
   const [replying, setReplying] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchCampaigns();
+  }, []);
 
   useEffect(() => {
     fetchMessages();
-  }, [filter]);
+  }, [filter, selectedCampaignId]);
+
+  const fetchCampaigns = async () => {
+    try {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('campaigns')
+        .select('id, slug, company_name')
+        .order('created_at', { ascending: false });
+      
+      if (data && data.length > 0) {
+        setCampaigns(data);
+        // Auto-select first campaign if none selected
+        if (!selectedCampaignId) {
+          setSelectedCampaignId(data[0].id);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching campaigns:', error);
+    }
+  };
 
   useEffect(() => {
     if (selectedMessage) {
@@ -76,11 +108,14 @@ export default function InboxPage() {
   }, [selectedMessage]);
 
   const fetchMessages = async () => {
+    if (!selectedCampaignId) return; // Don't fetch without a campaign selected
+    
     try {
       setLoading(true);
-      const supabase = createClient();
       
       const params = new URLSearchParams();
+      params.append('campaignId', selectedCampaignId);
+      
       if (filter === 'unread') {
         params.append('unreadOnly', 'true');
       } else if (filter === 'interested') {
@@ -205,6 +240,26 @@ export default function InboxPage() {
         {/* Header */}
         <div className="p-4 border-b border-white/10">
           <h1 className="text-xl font-bold text-white mb-4">Inbox</h1>
+          
+          {/* Campaign Selector */}
+          <div className="relative mb-4">
+            <select
+              value={selectedCampaignId || ''}
+              onChange={(e) => {
+                setSelectedCampaignId(e.target.value);
+                setSelectedMessage(null);
+                setThread([]);
+              }}
+              className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white outline-none focus:border-cyan-500/50 transition-colors appearance-none cursor-pointer"
+            >
+              {campaigns.map((campaign) => (
+                <option key={campaign.id} value={campaign.id} className="bg-gray-900">
+                  {campaign.company_name}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 pointer-events-none" />
+          </div>
           
           {/* Search */}
           <div className="relative mb-4">
