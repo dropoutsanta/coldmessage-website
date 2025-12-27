@@ -1,6 +1,6 @@
 import { scrapeWebsite, extractCompanyName } from './websiteScraper';
 import { analyzeCompanyAndICP, AnalysisProgressCallback } from './icpAnalyzer';
-import { findLeads, findLeadsWithEmails, buildSalesNavUrl } from './leadFinder';
+import { findLeads, buildSalesNavUrl } from './leadFinder';
 import { generateEmailsForLeads } from './emailWriter';
 import { CampaignData, GenerateCampaignRequest, ICPSettings, TargetGeo, LinkedInGeoLocation } from '../types';
 import { CampaignDebugData } from '../types/debug';
@@ -295,24 +295,27 @@ export async function generateCampaign(
         
         updateProgress(domain, slug, {
           status: 'waiting_for_leads',
-          message: useArk ? 'Searching AI Ark database and enriching with emails...' : 'Waiting for lead data (this may take a few minutes)...',
+          message: useArk ? 'Finding sample leads for preview...' : 'Waiting for lead data (this may take a few minutes)...',
           progress: 50,
         });
 
-        // For AI Ark, use findLeadsWithEmails to get leads with verified emails
-        // For Apify, use regular findLeads (no email enrichment available)
+        // PRE-CHECKOUT PREVIEW MODE:
+        // - Only fetch 5 leads for the preview
+        // - NO email enrichment (save Icypeas credits)
+        // - Full lead generation + email verification happens AFTER payment in /api/generate-leads
+        const previewCount = process.env.LEADS_COUNT_OVERRIDE 
+          ? parseInt(process.env.LEADS_COUNT_OVERRIDE, 10) 
+          : 5;
+        
+        console.log(`[CampaignGenerator] Preview mode: fetching ${previewCount} leads (no email enrichment)`);
+        
         let results;
         if (useArk) {
-          // Get target count from env var or use default
-          const targetCount = process.env.LEADS_COUNT_OVERRIDE 
-            ? parseInt(process.env.LEADS_COUNT_OVERRIDE, 10) 
-            : 500; // Default to 500 leads with emails
-          
-          console.log(`[CampaignGenerator] Using findLeadsWithEmails with target: ${targetCount}`);
-          results = await findLeadsWithEmails(finalICP, targetCount);
+          // Use findLeads (not findLeadsWithEmails) - no Icypeas enrichment
+          results = await findLeads(finalICP, undefined, previewCount);
         } else {
-          // Apify path - no email enrichment
-          results = await findLeads(finalICP, salesNavigatorUrl, 5);
+          // Apify path
+          results = await findLeads(finalICP, salesNavigatorUrl, previewCount);
         }
         leads = results.leads || [];
         

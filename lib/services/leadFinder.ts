@@ -274,7 +274,11 @@ export async function findLeadsWithEmails(
   const enrichedLeads: LinkedInLead[] = [];
   let page = 0;
   let totalPages = 1;
-  const batchSize = 100; // AI Ark max per page
+  
+  // Smart batch sizing: request ~2x target to account for email discovery rate (~50%)
+  // but cap at 100 (AI Ark max). For small targets, don't over-fetch.
+  const batchSize = Math.min(100, Math.max(10, targetCount * 2));
+  console.log(`[LeadFinder] Batch size: ${batchSize} (target: ${targetCount})`);
 
   while (enrichedLeads.length < targetCount && page < totalPages) {
     console.log(`[LeadFinder] Fetching page ${page} from AI Ark (${enrichedLeads.length}/${targetCount} leads with emails so far)...`);
