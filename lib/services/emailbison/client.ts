@@ -5,6 +5,7 @@ import {
   EmailBisonCreateCampaignResponse,
   EmailBisonUploadLeadsResponse,
   EmailBisonApiResponse,
+  EmailBisonLeadFull,
 } from './types';
 
 const EMAILBISON_API_URL = process.env.EMAILBISON_API_URL || 'https://dedi.emailbison.com';
@@ -162,29 +163,87 @@ class EmailBisonClient {
   }
 
   /**
+   * Search for a lead by email address
+   * Returns the lead ID if found, null otherwise
+   */
+  async findLeadByEmail(email: string): Promise<number | null> {
+    try {
+      const response = await this.request<{ data: Array<{ id: number; email: string }> }>(
+        `/api/leads?email=${encodeURIComponent(email)}`
+      );
+      const leads = response.data || [];
+      const found = leads.find(l => l.email?.toLowerCase() === email.toLowerCase());
+      return found?.id || null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Upload leads to a campaign (creates leads then attaches them)
-   * This is a convenience method that combines createLead + attachLeadsToCampaign
+   * Handles duplicates gracefully and skips leads already in active sequences
+   * 
+   * @param campaignId - The EmailBison campaign ID to attach leads to
+   * @param leads - Array of leads to upload
+   * @param lookupExistingLeadId - Optional function to look up existing emailbison_lead_id from your database
    */
   async uploadLeads(
     campaignId: string,
-    leads: EmailBisonLead[]
+    leads: EmailBisonLead[],
+    lookupExistingLeadId?: (email: string) => Promise<string | null>
   ): Promise<EmailBisonUploadLeadsResponse> {
     const leadIds: number[] = [];
+    const emailToLeadId: Record<string, string> = {};
+    let skippedActive = 0;
+    let duplicateCount = 0;
     
-    // Create each lead individually
     for (const lead of leads) {
+      // Step 1: Check if we already know this lead's EmailBison ID
+      if (lookupExistingLeadId) {
+        const existingId = await lookupExistingLeadId(lead.email);
+        if (existingId) {
+          // Step 2: Check if they're in an active sequence
+          const isActive = await this.isLeadInActiveSequence(existingId);
+          if (isActive) {
+            console.log(`[EmailBison] Skipping ${lead.email} - already in active sequence`);
+            skippedActive++;
+            continue;
+          }
+          // Not in active sequence, can attach to this campaign
+          leadIds.push(Number(existingId));
+          emailToLeadId[lead.email] = existingId;
+          continue;
+        }
+      }
+      
+      // Step 3: Try to create the lead
       try {
         const response = await this.createLead(lead);
         if (response.data?.id) {
           leadIds.push(response.data.id);
+          emailToLeadId[lead.email] = String(response.data.id);
         }
       } catch (error) {
-        console.error(`[EmailBison] Failed to create lead ${lead.email}:`, error);
-        // Continue with other leads
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        if (errorMsg.includes('email has already been taken')) {
+          duplicateCount++;
+          // Lead exists in EmailBison but we don't have their ID in our DB
+          // This is an "orphan" - log it but we can't check their status
+          console.warn(`[EmailBison] Orphan lead detected: ${lead.email} exists in EmailBison but not in our DB`);
+        } else {
+          console.error(`[EmailBison] Failed to create lead ${lead.email}:`, error);
+        }
       }
     }
     
-    // Attach all created leads to the campaign
+    if (duplicateCount > 0) {
+      console.log(`[EmailBison] ${duplicateCount} orphan leads (exist in EmailBison but not in our DB)`);
+    }
+    if (skippedActive > 0) {
+      console.log(`[EmailBison] Skipped ${skippedActive} leads already in active sequences`);
+    }
+    
+    // Attach all leads to the campaign
     if (leadIds.length > 0) {
       await this.attachLeadsToCampaign(campaignId, leadIds);
     }
@@ -192,6 +251,8 @@ class EmailBisonClient {
     return {
       lead_ids: leadIds.map(String),
       uploaded: leadIds.length,
+      skipped_active: skippedActive,
+      emailToLeadId,
     };
   }
 
@@ -304,10 +365,37 @@ class EmailBisonClient {
   }
 
   /**
-   * Get a single lead by ID
+   * Get a single lead by ID with full details
    */
   async getLead(leadId: string): Promise<EmailBisonApiResponse> {
     return this.request<EmailBisonApiResponse>(`/api/leads/${leadId}`);
+  }
+
+  /**
+   * Get full lead details including campaign data
+   */
+  async getLeadFull(leadId: string): Promise<EmailBisonLeadFull | null> {
+    try {
+      const response = await this.request<{ data: EmailBisonLeadFull }>(`/api/leads/${leadId}`);
+      return response.data || null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Check if a lead is currently in an active email sequence
+   * Returns true if the lead has any campaign with status 'in_sequence'
+   */
+  async isLeadInActiveSequence(leadId: string): Promise<boolean> {
+    const lead = await this.getLeadFull(leadId);
+    if (!lead?.lead_campaign_data) {
+      return false;
+    }
+    // Check if any campaign has status 'in_sequence'
+    return lead.lead_campaign_data.some(
+      campaign => campaign.status === 'in_sequence'
+    );
   }
 
   /**

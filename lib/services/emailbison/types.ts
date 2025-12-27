@@ -81,6 +81,9 @@ export interface EmailBisonCreateCampaignResponse {
 export interface EmailBisonUploadLeadsResponse {
   lead_ids: string[];
   uploaded: number;
+  skipped_active: number;
+  /** Map of email -> emailbison_lead_id for leads that were created or found */
+  emailToLeadId: Record<string, string>;
 }
 
 export interface EmailBisonSenderEmail {
@@ -132,7 +135,7 @@ export interface EmailBisonSentEmail {
 
 export interface EmailBisonLeadCampaignData {
   campaign_id: number;
-  status: 'in_sequence' | 'replied' | 'completed' | 'bounced';
+  status: 'in_sequence' | 'sequence_finished' | 'replied' | 'completed' | 'bounced';
   emails_sent: number;
   replies: number;
   opens: number;

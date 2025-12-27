@@ -71,6 +71,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check if leads already exist for this campaign (prevent duplicate generation)
+    const { count: existingLeadsCount } = await supabase
+      .from('leads')
+      .select('*', { count: 'exact', head: true })
+      .eq('campaign_id', campaignId);
+
+    if (existingLeadsCount && existingLeadsCount > 0) {
+      console.log(`[generate-leads] Campaign ${campaignId} already has ${existingLeadsCount} leads. Skipping.`);
+      return NextResponse.json({
+        success: true,
+        message: 'Leads already generated for this campaign',
+        leadsGenerated: existingLeadsCount,
+        skipped: true,
+      });
+    }
+
     // Apply POST_CHECKOUT_LEADS_MAX cap if set (for testing to save API credits)
     const leadsCount = getPostCheckoutLeadsCount(requestedLeadsCount);
 
@@ -270,7 +286,19 @@ export async function POST(request: NextRequest) {
           .not('email', 'is', null);
         
         if (insertedLeads && insertedLeads.length > 0) {
-          // Upload leads to EmailBison
+          // Create lookup function to find existing EmailBison lead IDs from our DB
+          const lookupExistingLeadId = async (email: string): Promise<string | null> => {
+            const { data } = await supabase
+              .from('leads')
+              .select('emailbison_lead_id')
+              .eq('email', email)
+              .not('emailbison_lead_id', 'is', null)
+              .limit(1)
+              .single();
+            return data?.emailbison_lead_id || null;
+          };
+          
+          // Upload leads to EmailBison with smart deduplication
           const ebLeads = insertedLeads.map(lead => ({
             email: lead.email!,
             first_name: lead.first_name,
@@ -285,16 +313,24 @@ export async function POST(request: NextRequest) {
             },
           }));
           
-          const uploadResponse = await emailBisonClient.uploadLeads(emailbisonCampaignId, ebLeads);
-          console.log(`[generate-leads] Uploaded ${uploadResponse.uploaded || ebLeads.length} leads to EmailBison`);
+          const uploadResponse = await emailBisonClient.uploadLeads(
+            emailbisonCampaignId,
+            ebLeads,
+            lookupExistingLeadId
+          );
           
-          // Map EmailBison lead IDs back to our leads
-          if (uploadResponse.lead_ids) {
-            for (let i = 0; i < uploadResponse.lead_ids.length && i < insertedLeads.length; i++) {
-              await supabase
-                .from('leads')
-                .update({ emailbison_lead_id: uploadResponse.lead_ids[i] })
-                .eq('id', insertedLeads[i].id);
+          console.log(`[generate-leads] Uploaded ${uploadResponse.uploaded} leads to EmailBison (${uploadResponse.skipped_active} skipped - already in active sequences)`);
+          
+          // Map EmailBison lead IDs back to our leads using the emailToLeadId mapping
+          if (uploadResponse.emailToLeadId) {
+            for (const lead of insertedLeads) {
+              const ebLeadId = uploadResponse.emailToLeadId[lead.email!];
+              if (ebLeadId) {
+                await supabase
+                  .from('leads')
+                  .update({ emailbison_lead_id: ebLeadId })
+                  .eq('id', lead.id);
+              }
             }
           }
         }

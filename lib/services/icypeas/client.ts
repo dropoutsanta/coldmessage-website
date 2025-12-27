@@ -15,19 +15,36 @@ if (!ICYPEAS_API_KEY) {
 class IcypeasClient {
   private apiUrl: string;
   private apiKey: string | undefined;
+  private lastRequestTime: number = 0;
+  private minRequestInterval: number = 100; // 100ms between requests = max 10/sec
 
   constructor() {
     this.apiUrl = ICYPEAS_API_URL;
     this.apiKey = ICYPEAS_API_KEY;
   }
 
+  /**
+   * Throttle requests to avoid rate limiting
+   */
+  private async throttle(): Promise<void> {
+    const now = Date.now();
+    const elapsed = now - this.lastRequestTime;
+    if (elapsed < this.minRequestInterval) {
+      await new Promise(resolve => setTimeout(resolve, this.minRequestInterval - elapsed));
+    }
+    this.lastRequestTime = Date.now();
+  }
+
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    retries: number = 3
   ): Promise<T> {
     if (!this.apiKey) {
       throw new Error('ICYPEAS_API_KEY is not configured');
     }
+
+    await this.throttle();
 
     const url = `${this.apiUrl}${endpoint}`;
     const headers = {
@@ -40,6 +57,15 @@ class IcypeasClient {
       ...options,
       headers,
     });
+
+    // Handle rate limiting with exponential backoff
+    if (response.status === 429 && retries > 0) {
+      const retryAfter = parseInt(response.headers.get('Retry-After') || '5', 10);
+      const backoffMs = Math.max(retryAfter * 1000, 2000 * (4 - retries)); // Exponential backoff
+      console.log(`[Icypeas] Rate limited. Waiting ${backoffMs}ms before retry (${retries} retries left)`);
+      await new Promise(resolve => setTimeout(resolve, backoffMs));
+      return this.request<T>(endpoint, options, retries - 1);
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -149,12 +175,23 @@ class IcypeasClient {
           return null;
         }
 
+        // DEBITED means credits were used - check for email in results
+        if (item.status === 'DEBITED') {
+          const email = item.results?.emails?.[0]?.email;
+          return email || null;
+        }
+
+        // DEBITED_NOT_FOUND means credits used but no email found
+        if (item.status === 'DEBITED_NOT_FOUND') {
+          return null;
+        }
+
         // If still processing, continue polling
         if (item.status === 'NONE' || item.status === 'SCHEDULED' || item.status === 'IN_PROGRESS') {
           continue;
         }
 
-        // Unknown status, assume failure
+        // Unknown status, log and assume failure
         console.warn(`[Icypeas] Unknown status "${item.status}" for ${firstname} ${lastname} at ${domainOrCompany}`);
         return null;
       }
@@ -170,17 +207,17 @@ class IcypeasClient {
 
   /**
    * Enrich multiple leads with emails in parallel batches
-   * Respects 10 requests/second rate limit
+   * Respects Icypeas 10 RPS rate limit via per-request throttling
    * 
    * @param leads - Array of leads to enrich
-   * @param batchSize - Number of concurrent requests (default: 10)
-   * @param batchDelayMs - Delay between batches in milliseconds (default: 100)
+   * @param batchSize - Number of concurrent requests (default: 5)
+   * @param batchDelayMs - Delay between batches in milliseconds (default: 500ms)
    * @returns Array of leads with email field populated (if found)
    */
   async enrichLeadsBatch<T extends { first_name: string; last_name: string; company?: string; company_domain?: string; email?: string }>(
     leads: T[],
-    batchSize: number = 10,
-    batchDelayMs: number = 100
+    batchSize: number = 5,
+    batchDelayMs: number = 500
   ): Promise<T[]> {
     const enrichedLeads: T[] = [];
 
