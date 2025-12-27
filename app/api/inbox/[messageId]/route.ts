@@ -3,11 +3,11 @@ import { createClient } from '@/lib/supabase/server';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { messageId: string } }
+  { params }: { params: Promise<{ messageId: string }> }
 ) {
   try {
     const supabase = await createClient();
-    const { messageId } = params;
+    const { messageId } = await params;
 
     const { data: message, error } = await supabase
       .from('inbox_messages')
@@ -79,11 +79,11 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { messageId: string } }
+  { params }: { params: Promise<{ messageId: string }> }
 ) {
   try {
     const supabase = await createClient();
-    const { messageId } = params;
+    const { messageId } = await params;
     const body = await request.json();
 
     const updates: Record<string, unknown> = {};

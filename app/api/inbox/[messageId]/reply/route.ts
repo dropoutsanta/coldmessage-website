@@ -4,11 +4,11 @@ import { emailBisonClient } from '@/lib/services/emailbison';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { messageId: string } }
+  { params }: { params: Promise<{ messageId: string }> }
 ) {
   try {
     const supabase = await createClient();
-    const { messageId } = params;
+    const { messageId } = await params;
     const { body: replyBody } = await request.json();
 
     if (!replyBody || !replyBody.trim()) {
