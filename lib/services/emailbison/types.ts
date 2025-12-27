@@ -142,7 +142,7 @@ export interface EmailBisonLeadCampaignData {
   interested: boolean;
 }
 
-export interface EmailBisonLeadFull extends EmailBisonLead {
+export interface EmailBisonLeadFull extends Omit<EmailBisonLead, 'id'> {
   id: number;
   status: 'unverified' | 'verified';
   lead_campaign_data: EmailBisonLeadCampaignData[];
