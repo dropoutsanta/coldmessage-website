@@ -62,7 +62,8 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createAdminClient();
-    const origin = request.headers.get('origin') || 'http://localhost:3000';
+    // Get origin from the request URL itself
+    const origin = `${request.nextUrl.protocol}//${request.nextUrl.host}`;
 
     // 1. Check if user already exists
     const { data: existingUsers } = await supabase.auth.admin.listUsers();
