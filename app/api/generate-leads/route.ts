@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
-import { findLeads } from '@/lib/services/leadFinder';
+import { findLeads, findLeadsWithEmails } from '@/lib/services/leadFinder';
+import { shouldUseArk } from '@/lib/services/arkLeadFinder';
 import { generateEmailForLead } from '@/lib/services/emailWriter';
 import { CompanyProfile } from '@/lib/services/agents/companyProfiler';
 import { ICPPersona } from '@/lib/services/agents/icpBrainstormer';
@@ -77,6 +78,7 @@ export async function POST(request: NextRequest) {
     };
 
     // 3. Find leads using the lead finder service
+    // If using AI Ark, use findLeadsWithEmails to get enriched emails via Icypeas
     let leads: Array<{
       about: string;
       company: string;
@@ -89,12 +91,24 @@ export async function POST(request: NextRequest) {
       location: string;
       profile_id: string;
       profile_picture?: string;
+      email?: string;  // Enriched via Icypeas
     }> = [];
 
     try {
-      const result = await findLeads(icpSettings, campaign.sales_navigator_url, leadsCount);
-      leads = result.leads || [];
-      console.log(`[generate-leads] Found ${leads.length} leads`);
+      const useArk = shouldUseArk();
+      
+      if (useArk) {
+        // Use AI Ark + Icypeas enrichment
+        console.log(`[generate-leads] Using AI Ark with email enrichment (target: ${leadsCount})`);
+        const result = await findLeadsWithEmails(icpSettings, leadsCount);
+        leads = result.leads || [];
+        console.log(`[generate-leads] Found ${leads.length} leads with emails`);
+      } else {
+        // Use Apify (no email enrichment)
+        const result = await findLeads(icpSettings, campaign.sales_navigator_url, leadsCount);
+        leads = result.leads || [];
+        console.log(`[generate-leads] Found ${leads.length} leads (no email enrichment)`);
+      }
     } catch (leadError) {
       console.error('[generate-leads] Error finding leads:', leadError);
       // Continue with empty leads - we'll update status to reflect the error
@@ -145,21 +159,21 @@ export async function POST(request: NextRequest) {
       const leadsWithEmails = await Promise.all(
         batch.map(async (lead) => {
           try {
-            const email = await generateEmailForLead(lead, companyInfo, 'Bella', emailContext);
+            const emailContent = await generateEmailForLead(lead, companyInfo, 'Bella', emailContext);
             return {
               campaign_id: campaignId,
               first_name: lead.first_name,
               last_name: lead.last_name,
-              email: null, // Email address not yet enriched
+              email: lead.email || null, // Use enriched email from Icypeas
               title: lead.job_title,
               company: lead.company,
               linkedin_url: lead.linkedin_url,
               profile_picture_url: lead.profile_picture || null,
               location: lead.location,
               about: lead.about,
-              why_picked: email.whyPicked,
-              email_subject: email.emailSubject,
-              email_body: email.emailBody,
+              why_picked: emailContent.whyPicked,
+              email_subject: emailContent.emailSubject,
+              email_body: emailContent.emailBody,
               status: 'pending',
             };
           } catch (emailError) {
@@ -169,7 +183,7 @@ export async function POST(request: NextRequest) {
               campaign_id: campaignId,
               first_name: lead.first_name,
               last_name: lead.last_name,
-              email: null,
+              email: lead.email || null, // Use enriched email from Icypeas
               title: lead.job_title,
               company: lead.company,
               linkedin_url: lead.linkedin_url,
