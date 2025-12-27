@@ -162,6 +162,10 @@ export interface LinkedInLead {
     start_date?: string;
     end_date?: string;
   }>;
+  
+  // Enrichment fields
+  email?: string;  // Enriched via Icypeas
+  company_domain?: string;  // Company domain for email enrichment (e.g., "acme.com")
 }
 
 export interface ApifySearchResult {

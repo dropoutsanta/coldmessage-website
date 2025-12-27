@@ -2,6 +2,7 @@ import { ApifyClient } from 'apify-client';
 import { LinkedInLead, ApifySearchResult, ICPSettings } from '../types';
 import { buildSalesNavigatorUrl } from './salesNavUrlBuilder';
 import { searchPeopleWithArk, shouldUseArk, isArkConfigured } from './arkLeadFinder';
+import { icypeasClient } from './icypeas';
 
 const apifyClient = new ApifyClient({
   token: process.env.APIFY_API_TOKEN,
@@ -14,6 +15,7 @@ export interface LeadSearchResult {
   status: 'initiated' | 'processing' | 'complete' | 'error';
   leads?: LinkedInLead[];
   totalCount?: number;
+  totalPages?: number;  // Pagination metadata (for AI Ark)
   message?: string;
 }
 
@@ -233,5 +235,98 @@ export async function waitForLeadResults(
  */
 export function buildSalesNavUrl(icp: ICPSettings): string {
   return buildSalesNavigatorUrl(icp);
+}
+
+/**
+ * Find leads with email addresses using the "tango dance" between AI Ark and Icypeas
+ * 
+ * This function:
+ * 1. Fetches batches of leads from AI Ark (with pagination)
+ * 2. Enriches each batch with Icypeas to find email addresses
+ * 3. Keeps only leads where email was found
+ * 4. Continues until target count is reached or source is exhausted
+ * 
+ * @param icpSettings - ICP filter settings
+ * @param targetCount - Target number of leads WITH emails to return
+ * @returns LeadSearchResult with enriched leads (email field populated)
+ */
+export async function findLeadsWithEmails(
+  icpSettings: ICPSettings,
+  targetCount: number
+): Promise<LeadSearchResult> {
+  // This function only works with AI Ark (needs pagination)
+  if (!shouldUseArk()) {
+    console.warn('[LeadFinder] findLeadsWithEmails() requires AI Ark (LEAD_SOURCE=1). Falling back to regular findLeads().');
+    return findLeads(icpSettings, undefined, targetCount);
+  }
+
+  if (!isArkConfigured()) {
+    return {
+      requestId: 'config-error',
+      status: 'error',
+      message: 'AI Ark selected but AI_ARK_TOKEN not configured',
+      leads: [],
+    };
+  }
+
+  console.log(`[LeadFinder] Starting email enrichment tango - target: ${targetCount} leads with emails`);
+
+  const enrichedLeads: LinkedInLead[] = [];
+  let page = 0;
+  let totalPages = 1;
+  const batchSize = 100; // AI Ark max per page
+
+  while (enrichedLeads.length < targetCount && page < totalPages) {
+    console.log(`[LeadFinder] Fetching page ${page} from AI Ark (${enrichedLeads.length}/${targetCount} leads with emails so far)...`);
+
+    // 1. Fetch batch from AI Ark
+    const batch = await searchPeopleWithArk(icpSettings, batchSize, page);
+    
+    if (batch.status === 'error' || !batch.leads || batch.leads.length === 0) {
+      console.warn(`[LeadFinder] No leads returned from AI Ark at page ${page}. Stopping.`);
+      break;
+    }
+
+    // Update totalPages from response
+    if (batch.totalPages !== undefined) {
+      totalPages = batch.totalPages;
+    }
+
+    console.log(`[LeadFinder] Fetched ${batch.leads.length} leads from AI Ark. Enriching with Icypeas...`);
+
+    // 2. Enrich with Icypeas (parallel batches of 10)
+    const enriched = await icypeasClient.enrichLeadsBatch(batch.leads, 10, 100);
+
+    // 3. Keep only leads with emails
+    const withEmails = enriched.filter(lead => lead.email);
+    console.log(`[LeadFinder] Found emails for ${withEmails.length}/${batch.leads.length} leads in this batch`);
+
+    enrichedLeads.push(...withEmails);
+
+    // If we've reached the target, break early
+    if (enrichedLeads.length >= targetCount) {
+      console.log(`[LeadFinder] ✓ Target reached! Found ${enrichedLeads.length} leads with emails`);
+      break;
+    }
+
+    // If no more pages, break
+    if (page >= totalPages - 1) {
+      console.log(`[LeadFinder] Source exhausted. Found ${enrichedLeads.length} leads with emails (target: ${targetCount})`);
+      break;
+    }
+
+    page++;
+  }
+
+  // Return capped at target count
+  const finalLeads = enrichedLeads.slice(0, targetCount);
+
+  return {
+    requestId: 'enriched',
+    status: 'complete',
+    leads: finalLeads,
+    totalCount: finalLeads.length,
+    message: `Found ${finalLeads.length} leads with emails (target: ${targetCount})`,
+  };
 }
 

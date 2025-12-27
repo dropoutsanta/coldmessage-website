@@ -1,6 +1,6 @@
 import { scrapeWebsite, extractCompanyName } from './websiteScraper';
 import { analyzeCompanyAndICP, AnalysisProgressCallback } from './icpAnalyzer';
-import { findLeads, buildSalesNavUrl } from './leadFinder';
+import { findLeads, findLeadsWithEmails, buildSalesNavUrl } from './leadFinder';
 import { generateEmailsForLeads } from './emailWriter';
 import { CampaignData, GenerateCampaignRequest, ICPSettings, TargetGeo, LinkedInGeoLocation } from '../types';
 import { CampaignDebugData } from '../types/debug';
@@ -295,12 +295,25 @@ export async function generateCampaign(
         
         updateProgress(domain, slug, {
           status: 'waiting_for_leads',
-          message: useArk ? 'Searching AI Ark database...' : 'Waiting for lead data (this may take a few minutes)...',
+          message: useArk ? 'Searching AI Ark database and enriching with emails...' : 'Waiting for lead data (this may take a few minutes)...',
           progress: 50,
         });
 
-        // findLeads() handles both Apify and AI Ark based on LEAD_SOURCE env
-        const results = await findLeads(finalICP, salesNavigatorUrl, 5);
+        // For AI Ark, use findLeadsWithEmails to get leads with verified emails
+        // For Apify, use regular findLeads (no email enrichment available)
+        let results;
+        if (useArk) {
+          // Get target count from env var or use default
+          const targetCount = process.env.LEADS_COUNT_OVERRIDE 
+            ? parseInt(process.env.LEADS_COUNT_OVERRIDE, 10) 
+            : 500; // Default to 500 leads with emails
+          
+          console.log(`[CampaignGenerator] Using findLeadsWithEmails with target: ${targetCount}`);
+          results = await findLeadsWithEmails(finalICP, targetCount);
+        } else {
+          // Apify path - no email enrichment
+          results = await findLeads(finalICP, salesNavigatorUrl, 5);
+        }
         leads = results.leads || [];
         
         // Capture lead search debug data

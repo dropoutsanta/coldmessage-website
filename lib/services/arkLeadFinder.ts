@@ -242,6 +242,21 @@ function normalizeToLinkedInLead(person: ArkPerson): LinkedInLead {
   const profileIdMatch = linkedinUrl.match(/linkedin\.com\/in\/([^/]+)/);
   const profileId = profileIdMatch?.[1] || person.identifier || person.id || '';
   
+  // Extract company domain for email enrichment
+  // Priority: company.link.domain > extract from company.link.website > company.summary.name
+  let companyDomain: string | undefined;
+  if (person.company?.link?.domain) {
+    companyDomain = person.company.link.domain.toLowerCase();
+  } else if (person.company?.link?.website) {
+    try {
+      const url = new URL(person.company.link.website.startsWith('http') ? person.company.link.website : `https://${person.company.link.website}`);
+      companyDomain = url.hostname.replace(/^www\./, '').toLowerCase();
+    } catch {
+      // Invalid URL, fall through to company name
+    }
+  }
+  // If no domain found, we'll use company name as fallback in enrichment
+  
   return {
     about: person.profile?.summary || person.profile?.headline || '',
     company: person.company?.summary?.name || currentPositionGroup?.company?.name || currentPosition?.company || '',
@@ -260,6 +275,7 @@ function normalizeToLinkedInLead(person: ArkPerson): LinkedInLead {
     headline: person.profile?.headline,
     current_company: person.company?.summary?.name || currentPositionGroup?.company?.name,
     current_title: person.profile?.title || currentPosition?.title,
+    company_domain: companyDomain,  // Preserve domain for email enrichment
     positions: person.position_groups?.flatMap(pg => 
       pg.profile_positions?.map(pos => ({
         title: pos.title || '',
@@ -278,11 +294,13 @@ function normalizeToLinkedInLead(person: ArkPerson): LinkedInLead {
  * 
  * @param icpSettings - ICP filter settings (titles, industries, locations, company size)
  * @param limit - Maximum number of results to return
+ * @param page - Page number (0-based) for pagination
  * @returns LeadSearchResult with normalized leads
  */
 export async function searchPeopleWithArk(
   icpSettings: ICPSettings,
-  limit: number = 25
+  limit: number = 25,
+  page: number = 0
 ): Promise<LeadSearchResult> {
   const token = process.env.AI_ARK_TOKEN;
   
@@ -308,7 +326,7 @@ export async function searchPeopleWithArk(
     // Build the request body per OpenAPI spec
     // Required: page (0-based), size (max 100)
     const requestBody: Record<string, unknown> = {
-      page: 0,  // 0-based pagination
+      page: page,  // 0-based pagination
       size: Math.min(limit, 100),  // Max 100 per request
     };
 
@@ -438,6 +456,7 @@ export async function searchPeopleWithArk(
       status: 'complete',
       leads: normalizedLeads,
       totalCount: data.totalElements || normalizedLeads.length,
+      totalPages: data.totalPages || 1,
     };
 
   } catch (error) {
