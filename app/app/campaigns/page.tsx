@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
+import { createClient } from '@/lib/supabase/client';
 import { 
   Plus, 
   Search, 
@@ -15,122 +16,181 @@ import {
   Mail,
   Users,
   TrendingUp,
-  ArrowUpRight
+  ArrowUpRight,
+  Loader2
 } from 'lucide-react';
 
 interface Campaign {
   id: string;
-  name: string;
-  status: 'active' | 'paused' | 'completed' | 'draft';
-  sent: number;
-  total: number;
-  opens: number;
-  replies: number;
-  leads: number;
-  createdAt: string;
-  lastActivity: string;
+  slug: string;
+  company_name: string;
+  status: 'draft' | 'paid' | 'generating' | 'ready' | 'active' | 'paused' | 'completed';
+  leads_purchased: number;
+  created_at: string;
+  updated_at: string;
+  // Computed from leads table
+  leads_generated?: number;
+  leads_sent?: number;
+  leads_opened?: number;
+  leads_replied?: number;
 }
 
-const campaigns: Campaign[] = [
-  {
-    id: '1',
-    name: 'Q4 SaaS Outreach',
-    status: 'active',
-    sent: 2500,
-    total: 5000,
-    opens: 1680,
-    replies: 45,
-    leads: 156,
-    createdAt: '2024-12-20',
-    lastActivity: '2 hours ago'
+const statusConfig: Record<string, { label: string; icon: typeof Play; bg: string; text: string }> = {
+  draft: { 
+    label: 'Draft', 
+    icon: Clock,
+    bg: 'bg-white/5',
+    text: 'text-white/40'
   },
-  {
-    id: '2',
-    name: 'Agency Partnership',
-    status: 'active',
-    sent: 1200,
-    total: 2500,
-    opens: 890,
-    replies: 23,
-    leads: 89,
-    createdAt: '2024-12-18',
-    lastActivity: '5 hours ago'
+  paid: { 
+    label: 'Processing', 
+    icon: Clock,
+    bg: 'bg-amber-500/10',
+    text: 'text-amber-400'
   },
-  {
-    id: '3',
-    name: 'Series A Founders',
-    status: 'completed',
-    sent: 5000,
-    total: 5000,
-    opens: 3200,
-    replies: 89,
-    leads: 234,
-    createdAt: '2024-12-10',
-    lastActivity: '3 days ago'
+  generating: { 
+    label: 'Generating', 
+    icon: Loader2,
+    bg: 'bg-sky-500/10',
+    text: 'text-sky-400'
   },
-  {
-    id: '4',
-    name: 'E-commerce Decision Makers',
-    status: 'paused',
-    sent: 800,
-    total: 3000,
-    opens: 520,
-    replies: 12,
-    leads: 45,
-    createdAt: '2024-12-15',
-    lastActivity: '1 week ago'
+  ready: { 
+    label: 'Ready', 
+    icon: CheckCircle2,
+    bg: 'bg-emerald-500/10',
+    text: 'text-emerald-400'
   },
-  {
-    id: '5',
-    name: 'FinTech Executives',
-    status: 'draft',
-    sent: 0,
-    total: 2000,
-    opens: 0,
-    replies: 0,
-    leads: 120,
-    createdAt: '2024-12-22',
-    lastActivity: 'Not started'
-  },
-];
-
-const statusConfig = {
   active: { 
     label: 'Active', 
-    color: 'emerald',
     icon: Play,
     bg: 'bg-emerald-500/10',
     text: 'text-emerald-400'
   },
   paused: { 
     label: 'Paused', 
-    color: 'amber',
     icon: Pause,
     bg: 'bg-amber-500/10',
     text: 'text-amber-400'
   },
   completed: { 
     label: 'Completed', 
-    color: 'white',
     icon: CheckCircle2,
     bg: 'bg-white/10',
     text: 'text-white/50'
   },
-  draft: { 
-    label: 'Draft', 
-    color: 'white',
-    icon: Clock,
-    bg: 'bg-white/5',
-    text: 'text-white/40'
-  },
 };
 
 export default function CampaignsPage() {
-  const [filter, setFilter] = useState<'all' | 'active' | 'paused' | 'completed' | 'draft'>('all');
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<'all' | 'active' | 'ready' | 'generating' | 'completed'>('all');
 
-  const filteredCampaigns = campaigns.filter(c => 
-    filter === 'all' || c.status === filter
-  );
+  useEffect(() => {
+    const fetchCampaigns = async () => {
+      const supabase = createClient();
+      
+      // Get current user's organization
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      // Get organization
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('id')
+        .eq('owner_id', user.id)
+        .single();
+
+      if (!org) {
+        setLoading(false);
+        return;
+      }
+
+      // Get campaigns for this organization
+      const { data: campaignsData, error } = await supabase
+        .from('campaigns')
+        .select('id, slug, company_name, status, leads_purchased, created_at, updated_at')
+        .eq('organization_id', org.id)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching campaigns:', error);
+        setLoading(false);
+        return;
+      }
+
+      // For each campaign, get lead counts by status
+      const campaignsWithStats = await Promise.all(
+        (campaignsData || []).map(async (campaign) => {
+          // Get total leads
+          const { count: totalLeads } = await supabase
+            .from('leads')
+            .select('*', { count: 'exact', head: true })
+            .eq('campaign_id', campaign.id);
+
+          // Get leads by status
+          const { count: sentLeads } = await supabase
+            .from('leads')
+            .select('*', { count: 'exact', head: true })
+            .eq('campaign_id', campaign.id)
+            .in('status', ['sent', 'opened', 'replied']);
+
+          const { count: openedLeads } = await supabase
+            .from('leads')
+            .select('*', { count: 'exact', head: true })
+            .eq('campaign_id', campaign.id)
+            .in('status', ['opened', 'replied']);
+
+          const { count: repliedLeads } = await supabase
+            .from('leads')
+            .select('*', { count: 'exact', head: true })
+            .eq('campaign_id', campaign.id)
+            .eq('status', 'replied');
+
+          return {
+            ...campaign,
+            leads_generated: totalLeads || 0,
+            leads_sent: sentLeads || 0,
+            leads_opened: openedLeads || 0,
+            leads_replied: repliedLeads || 0,
+          };
+        })
+      );
+
+      setCampaigns(campaignsWithStats);
+      setLoading(false);
+    };
+
+    fetchCampaigns();
+
+    // Poll for updates every 10 seconds if any campaign is generating
+    const interval = setInterval(() => {
+      if (campaigns.some(c => c.status === 'generating')) {
+        fetchCampaigns();
+      }
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const filteredCampaigns = campaigns.filter(c => {
+    if (filter === 'all') return true;
+    if (filter === 'active') return c.status === 'active' || c.status === 'ready';
+    return c.status === filter;
+  });
+
+  if (loading) {
+    return (
+      <div className="min-h-screen p-8 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 text-cyan-400 animate-spin mx-auto mb-4" />
+          <p className="text-white/50">Loading campaigns...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen p-8">
@@ -161,7 +221,7 @@ export default function CampaignsPage() {
         </div>
 
         <div className="flex gap-2 bg-white/5 p-1 rounded-xl">
-          {(['all', 'active', 'paused', 'completed', 'draft'] as const).map((f) => (
+          {(['all', 'active', 'generating', 'completed'] as const).map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
@@ -175,14 +235,30 @@ export default function CampaignsPage() {
             </button>
           ))}
         </div>
-
-        <button className="flex items-center gap-2 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white/60 hover:text-white transition-colors">
-          <Filter className="w-4 h-4" />
-          Filters
-        </button>
       </div>
 
+      {/* Empty State */}
+      {filteredCampaigns.length === 0 && (
+        <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-12 text-center">
+          <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Mail className="w-8 h-8 text-white/30" />
+          </div>
+          <h3 className="text-xl font-semibold text-white mb-2">No campaigns yet</h3>
+          <p className="text-white/50 mb-6 max-w-md mx-auto">
+            Create your first cold email campaign to start reaching out to potential customers.
+          </p>
+          <Link
+            href="/app/campaigns/new"
+            className="inline-flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-cyan-500 to-sky-500 text-white font-semibold rounded-xl hover:opacity-90 transition-all"
+          >
+            <Plus className="w-5 h-5" />
+            Create Campaign
+          </Link>
+        </div>
+      )}
+
       {/* Campaigns Table */}
+      {filteredCampaigns.length > 0 && (
       <div className="bg-white/[0.03] border border-white/10 rounded-2xl overflow-hidden">
         {/* Table Header */}
         <div className="grid grid-cols-[2fr,1fr,1fr,1fr,1fr,1fr,auto] gap-4 px-6 py-4 border-b border-white/10 text-sm font-medium text-white/40">
@@ -197,10 +273,16 @@ export default function CampaignsPage() {
 
         {/* Table Body */}
         {filteredCampaigns.map((campaign, i) => {
-          const status = statusConfig[campaign.status];
-          const progress = campaign.total > 0 ? (campaign.sent / campaign.total) * 100 : 0;
-          const openRate = campaign.sent > 0 ? ((campaign.opens / campaign.sent) * 100).toFixed(1) : '0';
-          const replyRate = campaign.sent > 0 ? ((campaign.replies / campaign.sent) * 100).toFixed(1) : '0';
+            const status = statusConfig[campaign.status] || statusConfig.draft;
+            const progress = campaign.leads_purchased > 0 
+              ? Math.round(((campaign.leads_sent || 0) / campaign.leads_purchased) * 100)
+              : 0;
+            const openRate = (campaign.leads_sent || 0) > 0 
+              ? ((campaign.leads_opened || 0) / (campaign.leads_sent || 1) * 100).toFixed(1)
+              : '0';
+            const replyRate = (campaign.leads_sent || 0) > 0 
+              ? ((campaign.leads_replied || 0) / (campaign.leads_sent || 1) * 100).toFixed(1)
+              : '0';
 
           return (
             <motion.div
@@ -212,29 +294,53 @@ export default function CampaignsPage() {
             >
               {/* Campaign Name */}
               <div>
-                <Link href={`/app/campaigns/${campaign.id}`} className="group">
+                  <Link href={`/app/campaigns/${campaign.slug}`} className="group">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="font-medium text-white group-hover:text-cyan-400 transition-colors">
-                      {campaign.name}
+                        {campaign.company_name}
                     </span>
                     <ArrowUpRight className="w-4 h-4 text-white/0 group-hover:text-cyan-400 transition-colors" />
                   </div>
-                  <p className="text-sm text-white/40">{campaign.lastActivity}</p>
+                    <p className="text-sm text-white/40">
+                      {new Date(campaign.created_at).toLocaleDateString()}
+                    </p>
                 </Link>
               </div>
 
               {/* Status */}
               <div>
                 <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${status.bg} ${status.text}`}>
-                  {campaign.status === 'active' && (
+                    {campaign.status === 'generating' ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : campaign.status === 'active' ? (
                     <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
+                    ) : (
+                      <status.icon className="w-3 h-3" />
                   )}
-                  {campaign.status !== 'active' && <status.icon className="w-3 h-3" />}
                   {status.label}
                 </span>
               </div>
 
               {/* Progress */}
+                <div>
+                  {campaign.status === 'generating' ? (
+                    <div>
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-gradient-to-r from-sky-500 to-cyan-500 rounded-full transition-all animate-pulse"
+                            style={{ width: `${Math.round((campaign.leads_generated || 0) / (campaign.leads_purchased || 1) * 100)}%` }}
+                          />
+                        </div>
+                        <span className="text-sm text-white/60 w-12">
+                          {Math.round((campaign.leads_generated || 0) / (campaign.leads_purchased || 1) * 100)}%
+                        </span>
+                      </div>
+                      <p className="text-xs text-white/30 mt-1">
+                        {campaign.leads_generated || 0} / {campaign.leads_purchased} leads
+                      </p>
+                    </div>
+                  ) : (
               <div>
                 <div className="flex items-center gap-3">
                   <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
@@ -244,19 +350,21 @@ export default function CampaignsPage() {
                     />
                   </div>
                   <span className="text-sm text-white/60 w-12">
-                    {progress.toFixed(0)}%
+                          {progress}%
                   </span>
                 </div>
                 <p className="text-xs text-white/30 mt-1">
-                  {campaign.sent.toLocaleString()} / {campaign.total.toLocaleString()}
+                        {campaign.leads_sent || 0} / {campaign.leads_generated || 0} sent
                 </p>
+                    </div>
+                  )}
               </div>
 
               {/* Opens */}
               <div>
                 <div className="flex items-center gap-2">
                   <Mail className="w-4 h-4 text-white/30" />
-                  <span className="text-white/70">{campaign.opens.toLocaleString()}</span>
+                    <span className="text-white/70">{campaign.leads_opened || 0}</span>
                 </div>
                 <p className="text-xs text-white/30 mt-1">{openRate}% rate</p>
               </div>
@@ -265,7 +373,7 @@ export default function CampaignsPage() {
               <div>
                 <div className="flex items-center gap-2">
                   <TrendingUp className="w-4 h-4 text-cyan-400" />
-                  <span className="text-cyan-400 font-medium">{campaign.replies}</span>
+                    <span className="text-cyan-400 font-medium">{campaign.leads_replied || 0}</span>
                 </div>
                 <p className="text-xs text-white/30 mt-1">{replyRate}% rate</p>
               </div>
@@ -274,7 +382,7 @@ export default function CampaignsPage() {
               <div>
                 <div className="flex items-center gap-2">
                   <Users className="w-4 h-4 text-white/30" />
-                  <span className="text-white/70">{campaign.leads}</span>
+                    <span className="text-white/70">{campaign.leads_generated || 0}</span>
                 </div>
               </div>
 
@@ -288,7 +396,7 @@ export default function CampaignsPage() {
           );
         })}
       </div>
+      )}
     </div>
   );
 }
-

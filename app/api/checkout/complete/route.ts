@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { stripe } from '@/lib/stripe';
+import { stripe, PRICE_CONFIG } from '@/lib/stripe';
 import { createAdminClient } from '@/lib/supabase/server';
 
 export async function POST(request: NextRequest) {
@@ -12,6 +12,8 @@ export async function POST(request: NextRequest) {
     let customerEmail: string | null = null;
     let campaignId: string | null = null;
     let stripeId: string | null = null;
+    let tier: 'tier1' | 'tier2' = 'tier1';
+    let leadsPurchased: number = 500;
 
     if (paymentIntentId) {
       // New Payment Element flow
@@ -26,6 +28,8 @@ export async function POST(request: NextRequest) {
 
       customerEmail = email || paymentIntent.receipt_email;
       campaignId = paymentIntent.metadata?.campaignId;
+      tier = (paymentIntent.metadata?.tier as 'tier1' | 'tier2') || 'tier1';
+      leadsPurchased = parseInt(paymentIntent.metadata?.emails || '500', 10);
       stripeId = paymentIntentId;
     } else if (sessionId) {
       // Legacy Checkout Session flow
@@ -40,6 +44,8 @@ export async function POST(request: NextRequest) {
 
       customerEmail = session.customer_details?.email ?? null;
       campaignId = session.metadata?.campaignId ?? null;
+      tier = (session.metadata?.tier as 'tier1' | 'tier2') || 'tier1';
+      leadsPurchased = parseInt(session.metadata?.emails || '500', 10);
       stripeId = sessionId;
     } else {
       return NextResponse.json(
@@ -58,7 +64,7 @@ export async function POST(request: NextRequest) {
     const supabase = createAdminClient();
     const origin = request.headers.get('origin') || 'http://localhost:3000';
 
-    // Check if user already exists
+    // 1. Check if user already exists
     const { data: existingUsers } = await supabase.auth.admin.listUsers();
     const existingUser = existingUsers?.users?.find(
       (u) => u.email === customerEmail
@@ -92,14 +98,51 @@ export async function POST(request: NextRequest) {
       console.log(`[checkout/complete] Created new user: ${userId}`);
     }
 
-    // Update campaign with user_id and mark as paid
+    // 2. Get or create organization for this user
+    let organizationId: string;
+    
+    const { data: existingOrg } = await supabase
+      .from('organizations')
+      .select('id')
+      .eq('owner_id', userId)
+      .single();
+
+    if (existingOrg) {
+      organizationId = existingOrg.id;
+      console.log(`[checkout/complete] Using existing organization: ${organizationId}`);
+    } else {
+      // Create new organization
+      const { data: newOrg, error: orgError } = await supabase
+        .from('organizations')
+        .insert({
+          owner_id: userId,
+          name: customerEmail.split('@')[0], // Default name from email
+        })
+        .select('id')
+        .single();
+
+      if (orgError) {
+        console.error('[checkout/complete] Error creating organization:', orgError);
+        return NextResponse.json(
+          { error: 'Failed to create organization' },
+          { status: 500 }
+        );
+      }
+
+      organizationId = newOrg.id;
+      console.log(`[checkout/complete] Created new organization: ${organizationId}`);
+    }
+
+    // 3. Update campaign with organization, user, payment info, and set to generating
     if (campaignId) {
       const { error: updateError } = await supabase
         .from('campaigns')
         .update({
           user_id: userId,
-          status: 'paid',
-          stripe_payment_id: stripeId,
+          organization_id: organizationId,
+          status: 'generating', // Trigger lead generation
+          leads_purchased: leadsPurchased,
+          stripe_session_id: stripeId,
           paid_at: new Date().toISOString(),
         })
         .eq('id', campaignId);
@@ -107,10 +150,18 @@ export async function POST(request: NextRequest) {
       if (updateError) {
         console.error('[checkout/complete] Error updating campaign:', updateError);
         // Don't fail the request - payment was successful
+      } else {
+        console.log(`[checkout/complete] Campaign ${campaignId} updated: status=generating, leads_purchased=${leadsPurchased}`);
+        
+        // 4. Trigger lead generation in background
+        // Fire and forget - don't await
+        triggerLeadGeneration(campaignId, leadsPurchased, origin).catch(err => {
+          console.error('[checkout/complete] Failed to trigger lead generation:', err);
+        });
       }
     }
 
-    // Generate magic link for auto-login
+    // 5. Generate magic link for auto-login
     const finalDestination = campaignSlug
       ? `/app/campaigns/${campaignSlug}`
       : '/app';
@@ -130,6 +181,7 @@ export async function POST(request: NextRequest) {
         success: true,
         email: customerEmail,
         userId,
+        organizationId,
         autoLoginUrl: null,
       });
     }
@@ -141,6 +193,7 @@ export async function POST(request: NextRequest) {
       success: true,
       email: customerEmail,
       userId,
+      organizationId,
       autoLoginUrl: actionLink,
     });
   } catch (error) {
@@ -149,5 +202,29 @@ export async function POST(request: NextRequest) {
       { error: 'Failed to complete checkout' },
       { status: 500 }
     );
+  }
+}
+
+/**
+ * Trigger lead generation in background
+ * This calls the generate-leads endpoint which will populate the leads table
+ */
+async function triggerLeadGeneration(campaignId: string, leadsCount: number, origin: string) {
+  try {
+    const response = await fetch(`${origin}/api/generate-leads`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ campaignId, leadsCount }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to trigger lead generation');
+    }
+
+    console.log(`[checkout/complete] Lead generation triggered for campaign ${campaignId}`);
+  } catch (error) {
+    console.error('[checkout/complete] Error triggering lead generation:', error);
+    throw error;
   }
 }

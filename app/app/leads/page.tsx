@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { createClient } from '@/lib/supabase/client';
 import { 
   Search, 
   Filter,
@@ -13,115 +14,44 @@ import {
   MapPin,
   CheckCircle2,
   XCircle,
-  Clock
+  Clock,
+  Loader2,
+  Send
 } from 'lucide-react';
 
 interface Lead {
   id: string;
-  name: string;
-  email: string;
+  first_name: string;
+  last_name: string;
+  email: string | null;
   title: string;
   company: string;
-  location: string;
-  linkedinUrl: string;
-  status: 'contacted' | 'replied' | 'bounced' | 'pending';
-  campaign: string;
-  addedAt: string;
+  location: string | null;
+  linkedin_url: string | null;
+  status: 'pending' | 'sent' | 'opened' | 'replied' | 'bounced';
+  campaign_id: string;
+  campaign_name?: string;
+  created_at: string;
 }
 
-const leads: Lead[] = [
-  {
-    id: '1',
-    name: 'Sarah Chen',
-    email: 'sarah@techstart.io',
-    title: 'CEO',
-    company: 'TechStart Inc',
-    location: 'San Francisco, CA',
-    linkedinUrl: 'https://linkedin.com/in/sarahchen',
-    status: 'replied',
-    campaign: 'Q4 SaaS Outreach',
-    addedAt: '2 days ago'
-  },
-  {
-    id: '2',
-    name: 'Mike Thompson',
-    email: 'mike@salespro.com',
-    title: 'Founder',
-    company: 'SalesPro Agency',
-    location: 'New York, NY',
-    linkedinUrl: 'https://linkedin.com/in/mikethompson',
-    status: 'replied',
-    campaign: 'Agency Partnership',
-    addedAt: '3 days ago'
-  },
-  {
-    id: '3',
-    name: 'Lisa Park',
-    email: 'lisa.park@cloudsync.io',
-    title: 'VP Sales',
-    company: 'CloudSync',
-    location: 'Austin, TX',
-    linkedinUrl: 'https://linkedin.com/in/lisapark',
-    status: 'contacted',
-    campaign: 'Q4 SaaS Outreach',
-    addedAt: '4 days ago'
-  },
-  {
-    id: '4',
-    name: 'David Kim',
-    email: 'david@growthlabs.co',
-    title: 'CEO',
-    company: 'GrowthLabs',
-    location: 'Seattle, WA',
-    linkedinUrl: 'https://linkedin.com/in/davidkim',
-    status: 'replied',
-    campaign: 'Agency Partnership',
-    addedAt: '5 days ago'
-  },
-  {
-    id: '5',
-    name: 'Emma Wilson',
-    email: 'emma@innovate.tech',
-    title: 'Head of Growth',
-    company: 'Innovate Tech',
-    location: 'Boston, MA',
-    linkedinUrl: 'https://linkedin.com/in/emmawilson',
-    status: 'contacted',
-    campaign: 'Series A Founders',
-    addedAt: '1 week ago'
-  },
-  {
-    id: '6',
-    name: 'James Rodriguez',
-    email: 'james@scalefast.io',
-    title: 'CRO',
-    company: 'ScaleFast',
-    location: 'Miami, FL',
-    linkedinUrl: 'https://linkedin.com/in/jamesrodriguez',
-    status: 'bounced',
-    campaign: 'Q4 SaaS Outreach',
-    addedAt: '1 week ago'
-  },
-  {
-    id: '7',
-    name: 'Amanda Foster',
-    email: 'amanda@nextstep.com',
-    title: 'VP Marketing',
-    company: 'NextStep',
-    location: 'Denver, CO',
-    linkedinUrl: 'https://linkedin.com/in/amandafoster',
-    status: 'pending',
-    campaign: 'Series A Founders',
-    addedAt: '2 weeks ago'
-  },
-];
-
 const statusConfig = {
-  contacted: { 
-    label: 'Contacted', 
-    icon: Mail,
+  pending: { 
+    label: 'Pending', 
+    icon: Clock,
+    bg: 'bg-white/5',
+    text: 'text-white/40'
+  },
+  sent: { 
+    label: 'Sent', 
+    icon: Send,
     bg: 'bg-sky-500/10',
     text: 'text-sky-400'
+  },
+  opened: { 
+    label: 'Opened', 
+    icon: Mail,
+    bg: 'bg-amber-500/10',
+    text: 'text-amber-400'
   },
   replied: { 
     label: 'Replied', 
@@ -135,17 +65,100 @@ const statusConfig = {
     bg: 'bg-red-500/10',
     text: 'text-red-400'
   },
-  pending: { 
-    label: 'Pending', 
-    icon: Clock,
-    bg: 'bg-white/5',
-    text: 'text-white/40'
-  },
 };
 
 export default function LeadsPage() {
-  const [filter, setFilter] = useState<'all' | 'contacted' | 'replied' | 'bounced' | 'pending'>('all');
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<'all' | 'pending' | 'sent' | 'opened' | 'replied' | 'bounced'>('all');
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
+  const [statusCounts, setStatusCounts] = useState({
+    pending: 0,
+    sent: 0,
+    opened: 0,
+    replied: 0,
+    bounced: 0,
+  });
+
+  useEffect(() => {
+    const fetchLeads = async () => {
+      const supabase = createClient();
+      
+      // Get current user's organization
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      // Get organization
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('id')
+        .eq('owner_id', user.id)
+        .single();
+
+      if (!org) {
+        setLoading(false);
+        return;
+      }
+
+      // Get campaigns for this org
+      const { data: campaigns } = await supabase
+        .from('campaigns')
+        .select('id, company_name')
+        .eq('organization_id', org.id);
+
+      if (!campaigns || campaigns.length === 0) {
+        setLoading(false);
+        return;
+      }
+
+      const campaignIds = campaigns.map(c => c.id);
+      const campaignNames = Object.fromEntries(campaigns.map(c => [c.id, c.company_name]));
+
+      // Get leads for these campaigns
+      const { data: leadsData, error } = await supabase
+        .from('leads')
+        .select('*')
+        .in('campaign_id', campaignIds)
+        .order('created_at', { ascending: false })
+        .limit(100); // Paginate for performance
+
+      if (error) {
+        console.error('Error fetching leads:', error);
+        setLoading(false);
+        return;
+      }
+
+      // Add campaign names to leads
+      const leadsWithCampaigns = (leadsData || []).map(lead => ({
+        ...lead,
+        campaign_name: campaignNames[lead.campaign_id] || 'Unknown',
+      }));
+
+      setLeads(leadsWithCampaigns);
+
+      // Calculate status counts
+      const counts = {
+        pending: 0,
+        sent: 0,
+        opened: 0,
+        replied: 0,
+        bounced: 0,
+      };
+      leadsWithCampaigns.forEach(lead => {
+        if (lead.status in counts) {
+          counts[lead.status as keyof typeof counts]++;
+        }
+      });
+      setStatusCounts(counts);
+
+      setLoading(false);
+    };
+
+    fetchLeads();
+  }, []);
 
   const filteredLeads = leads.filter(l => 
     filter === 'all' || l.status === filter
@@ -165,6 +178,17 @@ export default function LeadsPage() {
     );
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen p-8 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 text-cyan-400 animate-spin mx-auto mb-4" />
+          <p className="text-white/50">Loading leads...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen p-8">
       {/* Header */}
@@ -182,13 +206,13 @@ export default function LeadsPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-5 gap-4 mb-8">
         {Object.entries(statusConfig).map(([key, config]) => {
-          const count = leads.filter(l => l.status === key).length;
+          const count = statusCounts[key as keyof typeof statusCounts] || 0;
           return (
             <div 
               key={key}
-              className="bg-white/[0.03] border border-white/10 rounded-xl p-4 cursor-pointer hover:bg-white/[0.05] transition-colors"
+              className={`bg-white/[0.03] border border-white/10 rounded-xl p-4 cursor-pointer hover:bg-white/[0.05] transition-colors ${filter === key ? 'ring-2 ring-cyan-500/50' : ''}`}
               onClick={() => setFilter(key as typeof filter)}
             >
               <div className="flex items-center gap-3">
@@ -217,7 +241,7 @@ export default function LeadsPage() {
         </div>
 
         <div className="flex gap-2 bg-white/5 p-1 rounded-xl">
-          {(['all', 'contacted', 'replied', 'bounced', 'pending'] as const).map((f) => (
+          {(['all', 'pending', 'sent', 'opened', 'replied', 'bounced'] as const).map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
@@ -250,9 +274,6 @@ export default function LeadsPage() {
           </span>
           <div className="flex items-center gap-2">
             <button className="px-3 py-1.5 text-sm text-white/70 hover:text-white transition-colors">
-              Add to campaign
-            </button>
-            <button className="px-3 py-1.5 text-sm text-white/70 hover:text-white transition-colors">
               Export
             </button>
             <button 
@@ -265,7 +286,21 @@ export default function LeadsPage() {
         </motion.div>
       )}
 
+      {/* Empty State */}
+      {filteredLeads.length === 0 && (
+        <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-12 text-center">
+          <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Mail className="w-8 h-8 text-white/30" />
+          </div>
+          <h3 className="text-xl font-semibold text-white mb-2">No leads yet</h3>
+          <p className="text-white/50 max-w-md mx-auto">
+            Leads will appear here once you purchase a campaign and we generate personalized outreach for you.
+          </p>
+        </div>
+      )}
+
       {/* Leads Table */}
+      {filteredLeads.length > 0 && (
       <div className="bg-white/[0.03] border border-white/10 rounded-2xl overflow-hidden">
         {/* Table Header */}
         <div className="grid grid-cols-[auto,2fr,1.5fr,1fr,1fr,1fr,auto] gap-4 px-6 py-4 border-b border-white/10 text-sm font-medium text-white/40">
@@ -294,7 +329,7 @@ export default function LeadsPage() {
               key={lead.id}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.03 }}
+                transition={{ delay: i * 0.02 }}
               className="grid grid-cols-[auto,2fr,1.5fr,1fr,1fr,1fr,auto] gap-4 px-6 py-4 border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition-colors items-center"
             >
               {/* Checkbox */}
@@ -310,21 +345,23 @@ export default function LeadsPage() {
               {/* Contact */}
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-400 to-sky-500 flex items-center justify-center text-white font-bold text-sm shrink-0">
-                  {lead.name.charAt(0)}
+                    {lead.first_name.charAt(0)}
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-medium text-white">{lead.name}</span>
+                      <span className="font-medium text-white">{lead.first_name} {lead.last_name}</span>
+                      {lead.linkedin_url && (
                     <a 
-                      href={lead.linkedinUrl}
+                          href={lead.linkedin_url}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-white/30 hover:text-cyan-400 transition-colors"
                     >
                       <ExternalLink className="w-3.5 h-3.5" />
                     </a>
+                      )}
                   </div>
-                  <p className="text-sm text-white/40">{lead.email}</p>
+                    <p className="text-sm text-white/40">{lead.title}</p>
                 </div>
               </div>
 
@@ -334,10 +371,12 @@ export default function LeadsPage() {
                   <Building2 className="w-4 h-4 text-white/30" />
                   {lead.company}
                 </div>
+                  {lead.location && (
                 <div className="flex items-center gap-2 text-sm text-white/40 mt-0.5">
                   <MapPin className="w-3 h-3" />
                   {lead.location}
                 </div>
+                  )}
               </div>
 
               {/* Status */}
@@ -350,12 +389,14 @@ export default function LeadsPage() {
 
               {/* Campaign */}
               <div>
-                <span className="text-sm text-white/50">{lead.campaign}</span>
+                  <span className="text-sm text-white/50">{lead.campaign_name}</span>
               </div>
 
               {/* Added */}
               <div>
-                <span className="text-sm text-white/40">{lead.addedAt}</span>
+                  <span className="text-sm text-white/40">
+                    {new Date(lead.created_at).toLocaleDateString()}
+                  </span>
               </div>
 
               {/* Actions */}
@@ -368,7 +409,7 @@ export default function LeadsPage() {
           );
         })}
       </div>
+      )}
     </div>
   );
 }
-
