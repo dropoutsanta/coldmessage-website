@@ -1,6 +1,6 @@
 // Icypeas API Types
 
-export type IcypeasSearchStatus = 'NONE' | 'SCHEDULED' | 'IN_PROGRESS' | 'FOUND' | 'NOT_FOUND' | 'DEBITED';
+export type IcypeasSearchStatus = 'NONE' | 'SCHEDULED' | 'IN_PROGRESS' | 'FOUND' | 'NOT_FOUND' | 'DEBITED' | 'DEBITED_NOT_FOUND';
 
 export interface IcypeasEmailSearchRequest {
   firstname: string;
