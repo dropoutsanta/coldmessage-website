@@ -63,7 +63,9 @@ export async function POST(request: NextRequest) {
 
     const supabase = createAdminClient();
     // Get origin from the request URL itself
-    const origin = `${request.nextUrl.protocol}//${request.nextUrl.host}`;
+    const origin = request.nextUrl.origin;
+    console.log('[checkout/complete] Detected origin:', origin);
+    console.log('[checkout/complete] Request URL:', request.nextUrl.href);
 
     // 1. Check if user already exists
     const { data: existingUsers } = await supabase.auth.admin.listUsers();
