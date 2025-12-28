@@ -97,7 +97,7 @@ export interface CampaignData {
   // New fields for full data persistence (camelCase to match existing pattern)
   domain?: string;
   updatedAt?: string;
-  status?: 'draft' | 'pending' | 'active' | 'paid' | 'completed' | 'generating';
+  status?: 'draft' | 'pending' | 'active' | 'paid' | 'completed' | 'generating' | 'error';
   salesNavigatorUrl?: string | null;
   companyProfile?: CompanyProfile | null;
   icpPersonas?: ICPPersona[] | null;
