@@ -14,10 +14,6 @@ function AuthCallbackContent() {
       const supabase = createClient();
       const next = searchParams.get('next') || '/app';
 
-      // #region agent log
-      fetch('http://127.0.0.1:7244/ingest/963b891c-d04d-4a93-bbc6-c60d82dcc595',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'callback/page.tsx:handleAuth:entry',message:'Callback page processing',data:{origin:window.location.origin,host:window.location.host,href:window.location.href,next},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'F'})}).catch(()=>{});
-      // #endregion
-
       // Check for hash fragment (magic link tokens)
       const hashParams = new URLSearchParams(window.location.hash.substring(1));
       const accessToken = hashParams.get('access_token');
@@ -43,16 +39,8 @@ function AuthCallbackContent() {
       const code = searchParams.get('code');
       
       if (code) {
-        // #region agent log
-        fetch('http://127.0.0.1:7244/ingest/963b891c-d04d-4a93-bbc6-c60d82dcc595',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'callback/page.tsx:handleAuth:codeFound',message:'Code found, checking if session already exists',data:{codePrefix:code.substring(0,8)},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'F'})}).catch(()=>{});
-        // #endregion
-
         // First check if session already exists (middleware may have exchanged the code)
         const { data: { session: existingSession } } = await supabase.auth.getSession();
-        
-        // #region agent log
-        fetch('http://127.0.0.1:7244/ingest/963b891c-d04d-4a93-bbc6-c60d82dcc595',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'callback/page.tsx:handleAuth:sessionCheck',message:'Checked for existing session',data:{hasSession:!!existingSession,userId:existingSession?.user?.id?.substring(0,8)},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'F'})}).catch(()=>{});
-        // #endregion
 
         if (existingSession) {
           // Session already exists, middleware handled the exchange
@@ -62,10 +50,6 @@ function AuthCallbackContent() {
 
         // No session yet, try to exchange the code
         const { error } = await supabase.auth.exchangeCodeForSession(code);
-
-        // #region agent log
-        fetch('http://127.0.0.1:7244/ingest/963b891c-d04d-4a93-bbc6-c60d82dcc595',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'callback/page.tsx:handleAuth:afterExchange',message:'Exchange result',data:{success:!error,errorMessage:error?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'F'})}).catch(()=>{});
-        // #endregion
 
         if (error) {
           console.error('Error exchanging code:', error);
