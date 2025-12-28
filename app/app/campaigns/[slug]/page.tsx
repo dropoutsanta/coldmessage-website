@@ -6,7 +6,6 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import {
   ArrowLeft,
-  Play,
   Users,
   Mail,
   CheckCircle,
@@ -231,38 +230,10 @@ export default function CampaignDetailPage() {
               {campaign.status === 'generating' && (
                 <Loader2 className="w-3 h-3 inline mr-1 animate-spin" />
               )}
-              {campaign.status === 'ready' ? 'Ready to Launch' : 
-               campaign.status === 'generating' ? 'Generating Leads...' :
+              {campaign.status === 'generating' ? 'Generating Leads...' :
                campaign.status.charAt(0).toUpperCase() + campaign.status.slice(1)}
             </span>
 
-            {campaign.status === 'ready' && (
-              <button
-                onClick={async () => {
-                  try {
-                    const response = await fetch('/api/campaigns/launch', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ campaignId: campaign.id }),
-                    });
-                    if (response.ok) {
-                      // Refresh page to show updated status
-                      window.location.reload();
-                    } else {
-                      const error = await response.json();
-                      alert(error.error || 'Failed to launch campaign');
-                    }
-                  } catch (error) {
-                    console.error('Error launching campaign:', error);
-                    alert('Failed to launch campaign');
-                  }
-                }}
-                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-cyan-500 to-sky-500 text-white font-semibold rounded-lg hover:opacity-90 transition-all shadow-lg shadow-cyan-500/20"
-              >
-                <Play className="w-4 h-4" />
-                Start Sending
-              </button>
-            )}
           </div>
         </div>
       </div>
@@ -513,7 +484,7 @@ export default function CampaignDetailPage() {
                   </div>
                   <div>
                   <p className="text-white text-sm">Leads generated</p>
-                    <p className="text-white/40 text-xs">Ready to launch</p>
+                    <p className="text-white/40 text-xs">Campaign active</p>
                   </div>
                 </div>
               )}

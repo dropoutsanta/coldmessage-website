@@ -331,8 +331,16 @@ export async function POST(request: NextRequest) {
           }
         }
         
-        // Note: NOT resuming campaign - sender accounts need to be assigned first
-        console.log(`[generate-leads] EmailBison campaign ready (pending sender assignment)`);
+        // Resume campaign to start sending
+        await emailBisonClient.resumeCampaign(emailbisonCampaignId);
+        
+        // Update campaign status to active
+        await supabase
+          .from('campaigns')
+          .update({ emailbison_status: 'active' })
+          .eq('id', campaignId);
+        
+        console.log(`[generate-leads] EmailBison campaign launched`);
         
       } catch (ebError) {
         console.error('[generate-leads] Error creating EmailBison campaign:', ebError);
@@ -342,10 +350,10 @@ export async function POST(request: NextRequest) {
       console.log(`[generate-leads] No leads with email addresses - skipping EmailBison`);
     }
 
-    // 7. Update campaign status to ready
+    // 7. Update campaign status to active
     const { error: updateError } = await supabase
       .from('campaigns')
-      .update({ status: 'ready' })
+      .update({ status: 'active' })
       .eq('id', campaignId);
 
     if (updateError) {
