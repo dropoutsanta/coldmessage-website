@@ -12,6 +12,7 @@ import CheckoutSheet from './CheckoutSheet';
 import PaymentSuccessModal from './PaymentSuccessModal';
 import { CampaignDebugData } from '@/lib/types/debug';
 import { LiveDebugData, LiveAgentResult } from '@/lib/services/campaignGenerator';
+import { createClient } from '@/lib/supabase/client';
 
 interface Props {
   campaign: CampaignData | null;
@@ -134,6 +135,7 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
   const [showPaymentSuccess, setShowPaymentSuccess] = useState(false);
   const [customerEmail, setCustomerEmail] = useState<string | null>(null);
   const [isCompletingCheckout, setIsCompletingCheckout] = useState(false);
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | undefined>(undefined);
   
   // Sync campaign state when props change (e.g., after router.refresh())
   // This is critical for when the campaign transitions from 'generating' to 'draft'/'complete'
@@ -167,6 +169,31 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
   const router = useRouter();
   const isDebugMode = searchParams.get('debug') === 'true';
   const sessionId = searchParams.get('session_id');
+  
+  // Fetch current user session on mount
+  useEffect(() => {
+    const supabase = createClient();
+    
+    const fetchUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.email) {
+        setCurrentUserEmail(user.email);
+      }
+    };
+    
+    fetchUser();
+    
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session?.user?.email) {
+        setCurrentUserEmail(session.user.email);
+      } else {
+        setCurrentUserEmail(undefined);
+      }
+    });
+    
+    return () => subscription.unsubscribe();
+  }, []);
   
   // Check if campaign is still generating
   const isGenerating = campaign?.status === 'generating';
@@ -999,6 +1026,7 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
         onClose={() => setShowCheckout(false)}
         campaign={campaign}
         tier="tier1"
+        currentUserEmail={currentUserEmail}
       />
       
       {/* Payment Success Modal (shown after Stripe redirect) */}
