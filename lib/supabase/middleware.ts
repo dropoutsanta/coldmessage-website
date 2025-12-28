@@ -34,6 +34,12 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  // Allow auth callback to complete without interference
+  const isAuthCallback = request.nextUrl.pathname.startsWith('/auth/callback');
+  if (isAuthCallback) {
+    return supabaseResponse;
+  }
+
   // Protected routes - redirect to login if not authenticated
   const isProtectedRoute = request.nextUrl.pathname.startsWith('/app');
   
