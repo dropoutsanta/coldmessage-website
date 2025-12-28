@@ -10,12 +10,16 @@ import {
   Settings,
   Plus,
   LogOut,
-  ChevronRight
+  ChevronRight,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
+import { useTheme } from 'next-themes';
+import { useEffect, useState } from 'react';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -39,10 +43,21 @@ export default function DashboardSidebar({ user }: { user: UserInfo }) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  // Prevent hydration mismatch
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     router.push('/login');
+  };
+
+  const toggleTheme = () => {
+    setTheme(theme === 'dark' ? 'light' : 'dark');
   };
 
   const initials = user.name
@@ -53,9 +68,9 @@ export default function DashboardSidebar({ user }: { user: UserInfo }) {
     .slice(0, 2);
 
   return (
-    <aside className="w-64 bg-[#0f0f14] border-r border-white/5 flex flex-col fixed h-full">
+    <aside className="w-64 bg-[var(--dash-bg-secondary)] border-r border-[var(--dash-border)] flex flex-col fixed h-full transition-colors duration-300">
       {/* Logo */}
-      <div className="p-6 border-b border-white/5">
+      <div className="p-6 border-b border-[var(--dash-border)]">
         <Link href="/" className="flex items-center gap-3 group">
           <div className="relative">
             <div className="absolute inset-0 bg-cyan-500/20 blur-md rounded-full group-hover:bg-cyan-500/30 transition-all" />
@@ -65,7 +80,7 @@ export default function DashboardSidebar({ user }: { user: UserInfo }) {
               className="h-8 w-auto relative z-10"
             />
           </div>
-          <span className="font-bold text-white text-lg">ColdMessage</span>
+          <span className="font-bold text-[var(--dash-text)] text-lg">ColdMessage</span>
         </Link>
       </div>
 
@@ -93,30 +108,58 @@ export default function DashboardSidebar({ user }: { user: UserInfo }) {
               className={cn(
                 "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all group",
                 isActive 
-                  ? "bg-white/10 text-white" 
-                  : "text-white/50 hover:text-white hover:bg-white/5"
+                  ? "bg-[var(--dash-card-hover)] text-[var(--dash-text)]" 
+                  : "text-[var(--dash-text-muted)] hover:text-[var(--dash-text)] hover:bg-[var(--dash-card-bg)]"
               )}
             >
               <item.icon className={cn(
                 "w-5 h-5 transition-colors",
-                isActive ? "text-cyan-400" : "text-white/40 group-hover:text-white/60"
+                isActive ? "text-[var(--dash-accent)]" : "text-[var(--dash-text-subtle)] group-hover:text-[var(--dash-text-muted)]"
               )} />
               <span className="flex-1">{item.name}</span>
               {item.badge && (
-                <span className="px-2 py-0.5 bg-cyan-500/20 text-cyan-400 text-xs font-bold rounded-full">
+                <span className="px-2 py-0.5 bg-[var(--dash-accent-muted)] text-[var(--dash-accent)] text-xs font-bold rounded-full">
                   {item.badge}
                 </span>
               )}
               {isActive && (
-                <ChevronRight className="w-4 h-4 text-white/30" />
+                <ChevronRight className="w-4 h-4 text-[var(--dash-text-subtle)]" />
               )}
             </Link>
           );
         })}
       </nav>
 
+      {/* Theme Toggle */}
+      <div className="px-4 pb-2">
+        <button
+          onClick={toggleTheme}
+          className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-[var(--dash-text-muted)] hover:text-[var(--dash-text)] hover:bg-[var(--dash-card-bg)] transition-all"
+          title={mounted && theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+        >
+          {mounted ? (
+            theme === 'dark' ? (
+              <>
+                <Sun className="w-5 h-5 text-[var(--dash-text-subtle)]" />
+                <span>Light Mode</span>
+              </>
+            ) : (
+              <>
+                <Moon className="w-5 h-5 text-[var(--dash-text-subtle)]" />
+                <span>Dark Mode</span>
+              </>
+            )
+          ) : (
+            <>
+              <Sun className="w-5 h-5 text-[var(--dash-text-subtle)]" />
+              <span>Toggle Theme</span>
+            </>
+          )}
+        </button>
+      </div>
+
       {/* User Section */}
-      <div className="p-4 border-t border-white/5">
+      <div className="p-4 border-t border-[var(--dash-border)]">
         <div className="flex items-center gap-3 px-3 py-2">
           {user.avatarUrl ? (
             <img 
@@ -130,12 +173,12 @@ export default function DashboardSidebar({ user }: { user: UserInfo }) {
             </div>
           )}
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-white truncate">{user.name}</p>
-            <p className="text-xs text-white/40 truncate">{user.email}</p>
+            <p className="text-sm font-medium text-[var(--dash-text)] truncate">{user.name}</p>
+            <p className="text-xs text-[var(--dash-text-subtle)] truncate">{user.email}</p>
           </div>
           <button 
             onClick={handleSignOut}
-            className="p-2 text-white/40 hover:text-white/60 transition-colors"
+            className="p-2 text-[var(--dash-text-subtle)] hover:text-[var(--dash-text-muted)] transition-colors"
             title="Sign out"
           >
             <LogOut className="w-4 h-4" />
@@ -145,4 +188,3 @@ export default function DashboardSidebar({ user }: { user: UserInfo }) {
     </aside>
   );
 }
-

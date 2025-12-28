@@ -7,6 +7,117 @@
   --foreground: #ffffff;
 }
 
+/* ==============================================
+   DASHBOARD THEME SYSTEM
+   Dark mode is default, light mode via .light class
+   ============================================== */
+
+/* Dashboard dark theme (default) */
+.dashboard-theme {
+  --dash-bg: #0a0a0f;
+  --dash-bg-secondary: #0f0f14;
+  --dash-border: rgba(255, 255, 255, 0.05);
+  --dash-text: #ffffff;
+  --dash-text-muted: rgba(255, 255, 255, 0.5);
+  --dash-text-subtle: rgba(255, 255, 255, 0.4);
+  --dash-card-bg: rgba(255, 255, 255, 0.05);
+  --dash-card-hover: rgba(255, 255, 255, 0.1);
+  --dash-accent: #06b6d4;
+  --dash-accent-muted: rgba(6, 182, 212, 0.2);
+}
+
+/* Dashboard light theme */
+.dashboard-theme.light {
+  --dash-bg: #f8fafc;
+  --dash-bg-secondary: #ffffff;
+  --dash-border: rgba(0, 0, 0, 0.08);
+  --dash-text: #0f172a;
+  --dash-text-muted: #64748b;
+  --dash-text-subtle: #94a3b8;
+  --dash-card-bg: #ffffff;
+  --dash-card-hover: #f1f5f9;
+  --dash-accent: #0891b2;
+  --dash-accent-muted: rgba(8, 145, 178, 0.1);
+}
+
+/* Dashboard light mode overrides for common patterns */
+.dashboard-theme.light .text-white {
+  color: var(--dash-text);
+}
+
+.dashboard-theme.light .text-white\/50,
+.dashboard-theme.light .text-white\/40,
+.dashboard-theme.light .text-white\/30 {
+  color: var(--dash-text-muted);
+}
+
+.dashboard-theme.light .text-white\/60,
+.dashboard-theme.light .text-white\/70,
+.dashboard-theme.light .text-white\/80 {
+  color: var(--dash-text);
+}
+
+.dashboard-theme.light .bg-white\/\[0\.03\],
+.dashboard-theme.light .bg-white\/5 {
+  background-color: var(--dash-card-bg);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.dashboard-theme.light .bg-white\/10,
+.dashboard-theme.light .bg-white\/\[0\.05\],
+.dashboard-theme.light .bg-white\/\[0\.02\],
+.dashboard-theme.light .bg-white\/\[0\.08\] {
+  background-color: var(--dash-card-hover);
+}
+
+.dashboard-theme.light .border-white\/10,
+.dashboard-theme.light .border-white\/5 {
+  border-color: var(--dash-border);
+}
+
+.dashboard-theme.light .hover\:bg-white\/5:hover,
+.dashboard-theme.light .hover\:bg-white\/10:hover,
+.dashboard-theme.light .hover\:bg-white\/\[0\.02\]:hover,
+.dashboard-theme.light .hover\:bg-white\/\[0\.05\]:hover {
+  background-color: var(--dash-card-hover);
+}
+
+.dashboard-theme.light .hover\:text-white:hover,
+.dashboard-theme.light .hover\:text-white\/60:hover {
+  color: var(--dash-text);
+}
+
+.dashboard-theme.light .placeholder\:text-white\/30::placeholder {
+  color: var(--dash-text-subtle);
+}
+
+.dashboard-theme.light .divide-white\/5 > * + * {
+  border-color: var(--dash-border);
+}
+
+/* Light mode input styling */
+.dashboard-theme.light input[type="text"],
+.dashboard-theme.light input[type="email"],
+.dashboard-theme.light input[type="password"],
+.dashboard-theme.light input[type="url"],
+.dashboard-theme.light textarea,
+.dashboard-theme.light select {
+  background-color: var(--dash-card-bg);
+  border-color: var(--dash-border);
+  color: var(--dash-text);
+}
+
+.dashboard-theme.light input::placeholder,
+.dashboard-theme.light textarea::placeholder {
+  color: var(--dash-text-subtle);
+}
+
+/* Light mode checkbox styling */
+.dashboard-theme.light input[type="checkbox"] {
+  background-color: var(--dash-card-bg);
+  border-color: var(--dash-border);
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

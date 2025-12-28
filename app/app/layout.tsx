@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import DashboardSidebar from './DashboardSidebar';
+import { DashboardThemeWrapper } from './DashboardThemeWrapper';
 
 export default async function DashboardLayout({
   children,
@@ -25,13 +26,15 @@ export default async function DashboardLayout({
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] flex">
-      <DashboardSidebar user={userInfo} />
-      
-      {/* Main Content */}
-      <main className="flex-1 ml-64">
-        {children}
-      </main>
-    </div>
+    <DashboardThemeWrapper>
+      <div className="min-h-screen bg-[var(--dash-bg)] flex transition-colors duration-300">
+        <DashboardSidebar user={userInfo} />
+        
+        {/* Main Content */}
+        <main className="flex-1 ml-64">
+          {children}
+        </main>
+      </div>
+    </DashboardThemeWrapper>
   );
 }
