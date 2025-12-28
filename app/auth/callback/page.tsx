@@ -15,7 +15,7 @@ function AuthCallbackContent() {
       const next = searchParams.get('next') || '/app';
 
       // #region agent log
-      fetch('http://127.0.0.1:7244/ingest/963b891c-d04d-4a93-bbc6-c60d82dcc595',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'callback/page.tsx:handleAuth:entry',message:'Callback page processing',data:{origin:window.location.origin,host:window.location.host,href:window.location.href,next,cookies:document.cookie},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,C'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7244/ingest/963b891c-d04d-4a93-bbc6-c60d82dcc595',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'callback/page.tsx:handleAuth:entry',message:'Callback page processing',data:{origin:window.location.origin,host:window.location.host,href:window.location.href,next},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'F'})}).catch(()=>{});
       // #endregion
 
       // Check for hash fragment (magic link tokens)
@@ -24,7 +24,6 @@ function AuthCallbackContent() {
       const refreshToken = hashParams.get('refresh_token');
 
       if (accessToken && refreshToken) {
-        // Set the session from the tokens in the hash
         const { error } = await supabase.auth.setSession({
           access_token: accessToken,
           refresh_token: refreshToken,
@@ -36,24 +35,36 @@ function AuthCallbackContent() {
           return;
         }
 
-        // Session set successfully, redirect
         router.push(next);
         return;
       }
 
       // Check for code (OAuth flow)
       const code = searchParams.get('code');
-      // #region agent log
-      fetch('http://127.0.0.1:7244/ingest/963b891c-d04d-4a93-bbc6-c60d82dcc595',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'callback/page.tsx:handleAuth:codeCheck',message:'Checking for OAuth code',data:{hasCode:!!code,codePrefix:code?.substring(0,8)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
+      
       if (code) {
         // #region agent log
-        fetch('http://127.0.0.1:7244/ingest/963b891c-d04d-4a93-bbc6-c60d82dcc595',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'callback/page.tsx:handleAuth:beforeExchange',message:'About to exchange code for session',data:{codePrefix:code.substring(0,8)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7244/ingest/963b891c-d04d-4a93-bbc6-c60d82dcc595',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'callback/page.tsx:handleAuth:codeFound',message:'Code found, checking if session already exists',data:{codePrefix:code.substring(0,8)},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'F'})}).catch(()=>{});
         // #endregion
+
+        // First check if session already exists (middleware may have exchanged the code)
+        const { data: { session: existingSession } } = await supabase.auth.getSession();
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7244/ingest/963b891c-d04d-4a93-bbc6-c60d82dcc595',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'callback/page.tsx:handleAuth:sessionCheck',message:'Checked for existing session',data:{hasSession:!!existingSession,userId:existingSession?.user?.id?.substring(0,8)},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'F'})}).catch(()=>{});
+        // #endregion
+
+        if (existingSession) {
+          // Session already exists, middleware handled the exchange
+          router.push(next);
+          return;
+        }
+
+        // No session yet, try to exchange the code
         const { error } = await supabase.auth.exchangeCodeForSession(code);
 
         // #region agent log
-        fetch('http://127.0.0.1:7244/ingest/963b891c-d04d-4a93-bbc6-c60d82dcc595',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'callback/page.tsx:handleAuth:afterExchange',message:'Exchange result',data:{success:!error,errorMessage:error?.message},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7244/ingest/963b891c-d04d-4a93-bbc6-c60d82dcc595',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'callback/page.tsx:handleAuth:afterExchange',message:'Exchange result',data:{success:!error,errorMessage:error?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'F'})}).catch(()=>{});
         // #endregion
 
         if (error) {
@@ -71,7 +82,6 @@ function AuthCallbackContent() {
       if (session) {
         router.push(next);
       } else {
-        // No auth, redirect to login
         router.push('/login');
       }
     };
