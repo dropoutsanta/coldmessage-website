@@ -98,6 +98,42 @@ export interface CampaignData {
   domain?: string;
   updatedAt?: string;
   status?: 'draft' | 'pending' | 'active' | 'paid' | 'completed' | 'generating' | 'error';
+  generationProgress?: {
+    pipelineId: string;
+    domain: string;
+    startedAt: string;
+    currentAgent: string;
+    completedAgents: Array<{
+      name: string;
+      duration: number;
+      result: string;
+      details?: string[];
+      output?: unknown;
+    }>;
+    allPersonas?: Array<{
+      id: string;
+      name: string;
+      titles: string[];
+      roleDescription?: string;
+    }>;
+    selectedPersona?: {
+      id: string;
+      name: string;
+      reason: string;
+    };
+    rankings?: Array<{
+      personaId: string;
+      personaName: string;
+      score: number;
+    }>;
+    finalFilters?: {
+      titles: string[];
+      industries: string[];
+      locations: string[];
+      companySize: string;
+    };
+    salesNavUrl?: string;
+  } | null;
   salesNavigatorUrl?: string | null;
   companyProfile?: CompanyProfile | null;
   icpPersonas?: ICPPersona[] | null;

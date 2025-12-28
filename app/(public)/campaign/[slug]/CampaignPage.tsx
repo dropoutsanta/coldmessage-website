@@ -135,12 +135,31 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
   const [customerEmail, setCustomerEmail] = useState<string | null>(null);
   const [isCompletingCheckout, setIsCompletingCheckout] = useState(false);
   
+  // Sync campaign state when props change (e.g., after router.refresh())
+  // This is critical for when the campaign transitions from 'generating' to 'draft'/'complete'
+  useEffect(() => {
+    // Update campaign state when:
+    // 1. We have new initial data AND
+    // 2. Either we're transitioning out of generating OR the status changed
+    if (initialCampaign) {
+      const wasGenerating = campaign?.status === 'generating';
+      const nowNotGenerating = initialCampaign.status !== 'generating';
+      
+      if ((wasGenerating && nowNotGenerating) || 
+          (initialCampaign.status && initialCampaign.status !== campaign?.status)) {
+        console.log('[CampaignPage] Syncing campaign state:', campaign?.status, '->', initialCampaign.status);
+        setCampaign(initialCampaign);
+      }
+    }
+  }, [initialCampaign, campaign?.status]);
+  
   // Generating state tracking
   const [serverStatus, setServerStatus] = useState<string>('');
   const [serverProgress, setServerProgress] = useState<number>(0);
   const [serverStatusType, setServerStatusType] = useState<string>('');
   const [currentStep, setCurrentStep] = useState(0);
   const [displayProgress, setDisplayProgress] = useState(0);
+  const [hasRealTimeProgress, setHasRealTimeProgress] = useState(false);
   const targetProgressRef = useRef(0);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
   
@@ -152,6 +171,12 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
   // Check if campaign is still generating
   const isGenerating = campaign?.status === 'generating';
   const campaignDomain = campaign?.domain;
+  
+  // Use persisted generation progress from database if available (for refresh scenarios)
+  const persistedProgress = campaign?.generationProgress;
+  
+  // Consider persisted progress as real-time progress for UI purposes
+  const [initializedFromPersisted, setInitializedFromPersisted] = useState(false);
 
   // Handle Stripe redirect with session_id
   useEffect(() => {
@@ -206,12 +231,18 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
       return;
     }
 
+    let consecutiveFailures = 0;
+    
     const pollProgress = async () => {
       try {
+        // First try to get in-memory progress (more detailed)
         const response = await fetch(`/api/generate-campaign?domain=${encodeURIComponent(campaignDomain)}`);
+        
         if (response.ok) {
           const data = await response.json();
           if (data.success) {
+            consecutiveFailures = 0; // Reset on success
+            setHasRealTimeProgress(true); // We have real-time data
             setServerStatus(data.message || '');
             setServerProgress(data.progress || 0);
             setServerStatusType(data.status || '');
@@ -230,10 +261,32 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
                 router.refresh();
               }, 500);
             }
+            return;
+          }
+        }
+        
+        // If in-memory progress not available (404 or error), check database for completion
+        consecutiveFailures++;
+        
+        // After a few failures, check if campaign is done in the database
+        if (consecutiveFailures >= 2) {
+          const statusResponse = await fetch(`/api/campaigns/status?slug=${encodeURIComponent(slug)}`);
+          if (statusResponse.ok) {
+            const statusData = await statusResponse.json();
+            // If campaign is no longer generating, refresh to show the result
+            if (statusData.status && statusData.status !== 'generating') {
+              if (pollingRef.current) {
+                clearInterval(pollingRef.current);
+                pollingRef.current = null;
+              }
+              router.refresh();
+              return;
+            }
           }
         }
       } catch {
-        // Ignore polling errors
+        // Ignore polling errors, will retry
+        consecutiveFailures++;
       }
     };
 
@@ -248,7 +301,7 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
         pollingRef.current = null;
       }
     };
-  }, [isGenerating, campaignDomain, router]);
+  }, [isGenerating, campaignDomain, slug, router]);
 
   // Smoothly animate progress bar
   useEffect(() => {
@@ -284,6 +337,25 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
       }
     }
   }, [serverStatusType, currentStep]);
+
+  // Initialize from persisted progress on mount (for refresh scenarios)
+  useEffect(() => {
+    if (persistedProgress && !initializedFromPersisted && isGenerating) {
+      setInitializedFromPersisted(true);
+      setHasRealTimeProgress(true);
+      setLiveDebug(persistedProgress as LiveDebugData);
+      
+      // Estimate progress based on completed agents
+      const completedCount = persistedProgress.completedAgents?.length || 0;
+      const estimatedProgress = Math.min(30 + (completedCount * 12), 85);
+      setServerProgress(estimatedProgress);
+      
+      // Set current agent from persisted data
+      if (persistedProgress.currentAgent) {
+        setServerStatus(`Running ${persistedProgress.currentAgent}...`);
+      }
+    }
+  }, [persistedProgress, initializedFromPersisted, isGenerating]);
 
   const handleRegenerateEmails = async () => {
     if (!campaign || isRegenerating) return;
@@ -382,7 +454,8 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
              <div className="absolute inset-0 border-4 border-slate-200/50 rounded-[32px]" />
              
              {/* Progress Fill - using SVG for precise path following */}
-             <svg className="absolute inset-0 w-full h-full transform -rotate-90 drop-shadow-[0_0_15px_rgba(14,165,233,0.3)]">
+             <svg className={`absolute inset-0 w-full h-full transform -rotate-90 drop-shadow-[0_0_15px_rgba(14,165,233,0.3)] ${!hasRealTimeProgress ? 'animate-spin' : ''}`}
+                  style={!hasRealTimeProgress ? { animationDuration: '3s' } : undefined}>
                <rect
                  x="2"
                  y="2"
@@ -394,8 +467,8 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
                  strokeWidth="4"
                  strokeLinecap="round"
                  pathLength="100"
-                 strokeDasharray="100"
-                 strokeDashoffset={100 - progress}
+                 strokeDasharray={hasRealTimeProgress ? "100" : "25 75"}
+                 strokeDashoffset={hasRealTimeProgress ? 100 - progress : 0}
                  className="transition-all duration-300 ease-out w-[calc(100%-4px)] h-[calc(100%-4px)]"
                />
                <defs>
@@ -424,7 +497,7 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
             {/* Main Content Area - Insight Teaser */}
             <div className="flex-1 p-2 relative overflow-hidden flex flex-col">
               <InsightTeaser 
-                liveDebug={liveDebug || {
+                liveDebug={liveDebug || persistedProgress || {
                   pipelineId: '',
                   startedAt: new Date().toISOString(),
                   currentAgent: 'Website Scraper',
@@ -440,25 +513,44 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
                 <div>
                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">Current Step</p>
                    <p className="text-sm font-semibold text-slate-700">
-                     {serverStatus || loadingSteps[currentStep]?.text || 'Initializing...'}
+                     {hasRealTimeProgress 
+                       ? (serverStatus || loadingSteps[currentStep]?.text || 'Processing...')
+                       : 'Generation in progress...'
+                     }
                    </p>
                 </div>
-                <span className="text-2xl font-bold text-slate-900 tabular-nums">
-                  {Math.round(progress)}%
-                </span>
+                {hasRealTimeProgress ? (
+                  <span className="text-2xl font-bold text-slate-900 tabular-nums">
+                    {Math.round(progress)}%
+                  </span>
+                ) : (
+                  <div className="flex items-center gap-1">
+                    <div className="w-2 h-2 rounded-full bg-sky-500 animate-pulse" />
+                    <div className="w-2 h-2 rounded-full bg-sky-400 animate-pulse" style={{ animationDelay: '150ms' }} />
+                    <div className="w-2 h-2 rounded-full bg-sky-300 animate-pulse" style={{ animationDelay: '300ms' }} />
+                  </div>
+                )}
               </div>
 
               {/* Mini progress bar */}
               <div className="h-1 w-full bg-slate-200 rounded-full overflow-hidden">
-                <motion.div 
-                  className="h-full bg-sky-500"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${progress}%` }}
-                />
+                {hasRealTimeProgress ? (
+                  <motion.div 
+                    className="h-full bg-sky-500"
+                    initial={{ width: 0 }}
+                    animate={{ width: `${progress}%` }}
+                  />
+                ) : (
+                  <div className="h-full bg-gradient-to-r from-sky-400 via-sky-500 to-sky-400 animate-pulse" 
+                       style={{ width: '60%', animation: 'pulse 1.5s ease-in-out infinite' }} />
+                )}
               </div>
 
               <p className="text-[10px] text-center text-slate-400 mt-2 font-medium">
-                Estimated time: ~{Math.max(0, Math.ceil((100 - progress) / 100 * 2.5))} minutes
+                {hasRealTimeProgress 
+                  ? `Estimated time: ~${Math.max(0, Math.ceil((100 - progress) / 100 * 2.5))} minutes`
+                  : 'Please wait while we generate your campaign...'
+                }
               </p>
             </div>
           </div>
@@ -473,6 +565,43 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
               <LiveDebugPanel liveDebug={liveDebug} isLoading={true} />
             </motion.div>
           )}
+        </div>
+      </div>
+    );
+  }
+
+  // If campaign failed to generate, show error state with retry option
+  if (campaign?.status === 'error') {
+    return (
+      <div className="min-h-screen bg-[#F0F9FF] flex items-center justify-center p-6 font-sans">
+        {/* Background Ambient Glows */}
+        <div className="fixed top-0 left-1/4 w-[500px] h-[500px] bg-red-200/30 rounded-full blur-[100px] pointer-events-none mix-blend-multiply" />
+        <div className="fixed bottom-0 right-1/4 w-[600px] h-[600px] bg-orange-200/30 rounded-full blur-[100px] pointer-events-none mix-blend-multiply" />
+
+        <div className="relative w-full max-w-md z-10">
+          <div className="bg-white/90 backdrop-blur-2xl rounded-2xl shadow-2xl p-8 text-center border border-red-100">
+            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-bold text-slate-900 mb-2">Generation Failed</h2>
+            <p className="text-slate-500 mb-6">
+              We encountered an issue while generating your campaign for <span className="font-semibold text-slate-700">{campaign.domain || campaign.companyName}</span>. This can happen due to temporary issues with our lead sources.
+            </p>
+            <button
+              onClick={() => {
+                // Reset to show domain entry form
+                setCampaign(null);
+              }}
+              className="w-full bg-slate-900 text-white font-semibold py-3 px-6 rounded-xl hover:bg-slate-800 transition-colors"
+            >
+              Try Again
+            </button>
+            <p className="text-xs text-slate-400 mt-4">
+              If the issue persists, please contact support.
+            </p>
+          </div>
         </div>
       </div>
     );

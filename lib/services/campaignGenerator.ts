@@ -4,6 +4,7 @@ import { findLeads, buildSalesNavUrl } from './leadFinder';
 import { generateEmailsForLeads } from './emailWriter';
 import { CampaignData, GenerateCampaignRequest, ICPSettings, TargetGeo, LinkedInGeoLocation } from '../types';
 import { CampaignDebugData } from '../types/debug';
+import { supabaseAdmin } from '../supabase';
 
 export type CampaignStatus = 
   | 'scraping_website'
@@ -89,11 +90,27 @@ export function getCampaignProgress(domain: string): CampaignProgress | undefine
   return campaignProgress.get(normalizedDomain);
 }
 
-function updateProgress(domain: string, slug: string, progress: CampaignProgress) {
+function updateProgress(domain: string, slug: string, progress: CampaignProgress, campaignId?: string) {
   // Normalize domain for storage
   const normalizedDomain = domain.toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
   campaignProgress.set(normalizedDomain, progress);
   console.log(`[CampaignGenerator] ${slug}: ${progress.status} (${progress.progress}%) - ${progress.message}`);
+  
+  // Persist liveDebug to database so it survives page refreshes
+  if (campaignId && progress.liveDebug && supabaseAdmin) {
+    supabaseAdmin
+      .from('campaigns')
+      .update({ 
+        generation_progress: progress.liveDebug,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', campaignId)
+      .then(({ error }) => {
+        if (error) {
+          console.error(`[CampaignGenerator] Failed to persist progress:`, error.message);
+        }
+      });
+  }
 }
 
 /**
@@ -101,9 +118,9 @@ function updateProgress(domain: string, slug: string, progress: CampaignProgress
  * Optimized with parallel execution where possible
  */
 export async function generateCampaign(
-  request: GenerateCampaignRequest & { captureDebug?: boolean }
+  request: GenerateCampaignRequest & { captureDebug?: boolean; campaignId?: string }
 ): Promise<CampaignResult> {
-  const { domain, slug, icpSettings, salesNavigatorUrl, captureDebug = false } = request;
+  const { domain, slug, icpSettings, salesNavigatorUrl, captureDebug = false, campaignId } = request;
   
   // Debug data accumulator
   let debugData: CampaignDebugData | undefined;
@@ -119,6 +136,11 @@ export async function generateCampaign(
   
   console.log(`[CampaignGenerator] Starting campaign generation for ${domain}...`);
   const startTime = Date.now();
+  
+  // Helper to update progress with campaignId included
+  const saveProgress = (progress: CampaignProgress) => {
+    updateProgress(domain, slug, progress, campaignId);
+  };
 
   try {
     // Check if lead source is configured (Apify or AI Ark)
@@ -147,7 +169,7 @@ export async function generateCampaign(
     if (hasLeadSource && (salesNavigatorUrl || icpSettings)) {
       console.log(`[CampaignGenerator] Starting lead search early with ${useArk ? 'AI Ark' : 'Apify'} (parallel with website analysis)`);
       
-      updateProgress(domain, slug, {
+      saveProgress({
         status: 'finding_leads',
         message: `Starting lead search with ${useArk ? 'AI Ark' : 'LinkedIn Sales Navigator'}...`,
         progress: 10,
@@ -165,7 +187,7 @@ export async function generateCampaign(
 
     // Step 1: Scrape website
     const scrapeStart = Date.now();
-    updateProgress(domain, slug, {
+    saveProgress({
       status: 'scraping_website',
       message: 'Analyzing your website...',
       progress: 15,
@@ -185,7 +207,7 @@ export async function generateCampaign(
     liveDebug.currentAgent = 'Company Profiler';
 
     // Step 2: Analyze company and ICP
-    updateProgress(domain, slug, {
+    saveProgress({
       status: 'analyzing_company',
       message: 'Understanding your business and ideal customers...',
       progress: 30,
@@ -234,7 +256,7 @@ export async function generateCampaign(
       }
       
       // Update progress store with new live debug
-      updateProgress(domain, slug, {
+      saveProgress({
         status: 'analyzing_company',
         message: `Running ${update.currentAgent}...`,
         progress: 30 + (liveDebug.completedAgents.length * 8),
@@ -263,7 +285,7 @@ export async function generateCampaign(
     
     if (leadSearchPromise) {
       // Wait for the early lead search to complete
-      updateProgress(domain, slug, {
+      saveProgress({
         status: 'waiting_for_leads',
         message: 'Waiting for lead data...',
         progress: 50,
@@ -280,7 +302,7 @@ export async function generateCampaign(
     } else if (hasLeadSource) {
       // Start lead search now (we didn't have ICP settings earlier)
       liveDebug.currentAgent = 'Lead Finder';
-      updateProgress(domain, slug, {
+      saveProgress({
         status: 'finding_leads',
         message: `Searching for qualified leads with ${useArk ? 'AI Ark' : 'LinkedIn Sales Navigator'}...`,
         progress: 60,
@@ -293,7 +315,7 @@ export async function generateCampaign(
       try {
         console.log(`[CampaignGenerator] Using ${useArk ? 'AI Ark' : 'Apify'} for lead search`);
         
-        updateProgress(domain, slug, {
+        saveProgress({
           status: 'waiting_for_leads',
           message: useArk ? 'Finding sample leads for preview...' : 'Waiting for lead data (this may take a few minutes)...',
           progress: 50,
@@ -365,7 +387,7 @@ export async function generateCampaign(
       result: `Found ${leads.length} leads`,
       details: leads.slice(0, 3).map(l => l.full_name),
     });
-    updateProgress(domain, slug, {
+    saveProgress({
       status: 'writing_emails',
       message: 'Crafting personalized emails in parallel...',
       progress: 80,
@@ -405,7 +427,7 @@ export async function generateCampaign(
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
     console.log(`[CampaignGenerator] Campaign completed in ${elapsed}s`);
 
-    updateProgress(domain, slug, {
+    saveProgress({
       status: 'complete',
       message: `Campaign ready! (${elapsed}s)`,
       progress: 100,
@@ -540,7 +562,7 @@ export async function generateCampaign(
       pipelineDebug: pipelineDebug as any,
     };
 
-    updateProgress(domain, slug, {
+    saveProgress({
       status: 'complete',
       message: `Campaign ready! (${elapsed}s)`,
       progress: 100,
@@ -552,7 +574,7 @@ export async function generateCampaign(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     
-    updateProgress(domain, slug, {
+    saveProgress({
       status: 'error',
       message: errorMessage,
       progress: 0,

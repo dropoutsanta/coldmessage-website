@@ -151,6 +151,7 @@ async function startBackgroundGeneration(
       domain,
       slug,
       captureDebug: debug,
+      campaignId,
     });
 
     const { campaign: campaignData, debugData } = result;

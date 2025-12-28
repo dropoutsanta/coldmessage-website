@@ -55,6 +55,7 @@ export interface SupabaseCampaignRow {
   domain?: string;
   updated_at?: string;
   status?: 'generating' | 'draft' | 'pending' | 'active' | 'paid' | 'completed' | 'error';
+  generation_progress?: unknown;
   sales_navigator_url?: string | null;
   company_profile?: unknown;
   icp_personas?: unknown;
@@ -100,6 +101,7 @@ export function transformSupabaseCampaign(row: SupabaseCampaignRow): CampaignDat
     domain: row.domain,
     updatedAt: row.updated_at,
     status: row.status,
+    generationProgress: row.generation_progress as any,
     salesNavigatorUrl: row.sales_navigator_url || null,
     companyProfile: row.company_profile as any,
     icpPersonas: row.icp_personas as any,
