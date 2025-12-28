@@ -71,25 +71,21 @@ export async function POST(request: NextRequest) {
       })
       .eq('id', campaignId);
 
-    // 4. Add sequence steps (use first lead's email as template)
-    // For now, we'll use a single sequence step with the first lead's email template
-    // In the future, you might want to create multiple steps or use a template
-    const firstLead = leads[0];
-    if (firstLead.email_subject && firstLead.email_body) {
-      await emailBisonClient.addSequenceSteps(
-        emailBisonCampaign.campaign_id,
-        {
-          title: 'Initial Outreach',
-          sequence_steps: [
-            {
-              email_subject: firstLead.email_subject,
-              email_body: firstLead.email_body,
-              wait_in_days: 0, // Send immediately
-            },
-          ],
-        }
-      );
-    }
+    // 4. Add sequence steps using template variables
+    // Each lead's personalized email is stored in custom_fields (email_subject, email_body)
+    await emailBisonClient.addSequenceSteps(
+      emailBisonCampaign.campaign_id,
+      {
+        title: 'Initial Outreach',
+        sequence_steps: [
+          {
+            email_subject: '{{custom.email_subject}}',
+            email_body: '{{custom.email_body}}',
+            wait_in_days: 0, // Send immediately
+          },
+        ],
+      }
+    );
 
     // 5. Upload leads to EmailBison
     // Filter out leads without emails (they need to be enriched first)
