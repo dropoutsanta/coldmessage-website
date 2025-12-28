@@ -259,24 +259,19 @@ export async function POST(request: NextRequest) {
           })
           .eq('id', campaignId);
         
-        // Add sequence step (use first lead's email template)
-        const firstLead = leads[0];
-        if (firstLead) {
-          // Generate email for first lead to get template
-          const emailContent = await generateEmailForLead(firstLead, companyInfo, 'Bella', emailContext);
-          
-          await emailBisonClient.addSequenceSteps(emailbisonCampaignId, {
-            title: 'Initial Outreach',
-            sequence_steps: [
-              {
-                email_subject: emailContent.emailSubject,
-                email_body: emailContent.emailBody,
-                wait_in_days: 0,
-              },
-            ],
-          });
-          console.log(`[generate-leads] Added sequence step to EmailBison campaign`);
-        }
+        // Add sequence step using template variables
+        // Each lead's personalized email is stored in custom_fields (email_subject, email_body)
+        await emailBisonClient.addSequenceSteps(emailbisonCampaignId, {
+          title: 'Initial Outreach',
+          sequence_steps: [
+            {
+              email_subject: '{{custom.email_subject}}',
+              email_body: '{{custom.email_body}}',
+              wait_in_days: 0,
+            },
+          ],
+        });
+        console.log(`[generate-leads] Added sequence step to EmailBison campaign`);
         
         // Fetch inserted leads with their IDs to map back
         const { data: insertedLeads } = await supabase
@@ -299,6 +294,7 @@ export async function POST(request: NextRequest) {
           };
           
           // Upload leads to EmailBison with smart deduplication
+          // Convert email_body newlines to <br> tags for HTML rendering
           const ebLeads = insertedLeads.map(lead => ({
             email: lead.email!,
             first_name: lead.first_name,
@@ -307,7 +303,7 @@ export async function POST(request: NextRequest) {
             title: lead.title,
             custom_fields: {
               email_subject: lead.email_subject || '',
-              email_body: lead.email_body || '',
+              email_body: (lead.email_body || '').replace(/\n/g, '<br>'),
               linkedin_url: lead.linkedin_url || '',
               why_picked: lead.why_picked || '',
             },

@@ -54,6 +54,7 @@ export interface SupabaseCampaignRow {
   created_at: string;
   domain?: string;
   updated_at?: string;
+  status?: 'generating' | 'draft' | 'pending' | 'active' | 'paid' | 'completed' | 'error';
   sales_navigator_url?: string | null;
   company_profile?: unknown;
   icp_personas?: unknown;
@@ -98,6 +99,7 @@ export function transformSupabaseCampaign(row: SupabaseCampaignRow): CampaignDat
     createdAt: row.created_at,
     domain: row.domain,
     updatedAt: row.updated_at,
+    status: row.status,
     salesNavigatorUrl: row.sales_navigator_url || null,
     companyProfile: row.company_profile as any,
     icpPersonas: row.icp_personas as any,

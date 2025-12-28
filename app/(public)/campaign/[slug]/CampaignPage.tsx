@@ -1,12 +1,13 @@
 'use client';
 
 import { CampaignData, QualifiedLead } from '@/lib/types';
-import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useSearchParams } from 'next/navigation';
+import { useState, useEffect, useRef } from 'react';
+import { motion } from 'framer-motion';
+import { useSearchParams, useRouter } from 'next/navigation';
 import WorldMap from './WorldMap';
 import DomainEntryForm from './DomainEntryForm';
 import LiveDebugPanel from './LiveDebugPanel';
+import InsightTeaser from './InsightTeaser';
 import CheckoutSheet from './CheckoutSheet';
 import PaymentSuccessModal from './PaymentSuccessModal';
 import { CampaignDebugData } from '@/lib/types/debug';
@@ -105,6 +106,25 @@ function convertDebugDataToLiveDebug(debugData: CampaignDebugData): LiveDebugDat
   };
 }
 
+// Map server status to step index for visual indicators
+const statusToStepIndex: Record<string, number> = {
+  'scraping_website': 0,
+  'analyzing_company': 1,
+  'finding_leads': 2,
+  'waiting_for_leads': 3,
+  'writing_emails': 4,
+  'complete': 5,
+};
+
+const loadingSteps = [
+  { text: 'Analyzing your website...', status: 'scraping_website' },
+  { text: 'Understanding your ideal customer profile...', status: 'analyzing_company' },
+  { text: 'Searching for qualified leads...', status: 'finding_leads' },
+  { text: 'Retrieving lead data from LinkedIn...', status: 'waiting_for_leads' },
+  { text: 'Crafting personalized emails...', status: 'writing_emails' },
+  { text: 'Finalizing your campaign...', status: 'complete' },
+];
+
 export default function CampaignPage({ campaign: initialCampaign, slug }: Props) {
   const [campaign, setCampaign] = useState<CampaignData | null>(initialCampaign);
   const [debugData, setDebugData] = useState<CampaignDebugData | null>(null);
@@ -115,9 +135,23 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
   const [customerEmail, setCustomerEmail] = useState<string | null>(null);
   const [isCompletingCheckout, setIsCompletingCheckout] = useState(false);
   
+  // Generating state tracking
+  const [serverStatus, setServerStatus] = useState<string>('');
+  const [serverProgress, setServerProgress] = useState<number>(0);
+  const [serverStatusType, setServerStatusType] = useState<string>('');
+  const [currentStep, setCurrentStep] = useState(0);
+  const [displayProgress, setDisplayProgress] = useState(0);
+  const targetProgressRef = useRef(0);
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  
   const searchParams = useSearchParams();
+  const router = useRouter();
   const isDebugMode = searchParams.get('debug') === 'true';
   const sessionId = searchParams.get('session_id');
+  
+  // Check if campaign is still generating
+  const isGenerating = campaign?.status === 'generating';
+  const campaignDomain = campaign?.domain;
 
   // Handle Stripe redirect with session_id
   useEffect(() => {
@@ -161,6 +195,95 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
         });
     }
   }, [sessionId, slug, showPaymentSuccess, isCompletingCheckout]);
+
+  // Poll for progress when campaign is generating
+  useEffect(() => {
+    if (!isGenerating || !campaignDomain) {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+      return;
+    }
+
+    const pollProgress = async () => {
+      try {
+        const response = await fetch(`/api/generate-campaign?domain=${encodeURIComponent(campaignDomain)}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            setServerStatus(data.message || '');
+            setServerProgress(data.progress || 0);
+            setServerStatusType(data.status || '');
+            if (data.liveDebug) {
+              setLiveDebug(data.liveDebug);
+            }
+            
+            // If generation is complete, refresh the page to get updated campaign data
+            if (data.status === 'complete' || data.progress >= 100) {
+              if (pollingRef.current) {
+                clearInterval(pollingRef.current);
+                pollingRef.current = null;
+              }
+              // Small delay to show 100% before refresh
+              setTimeout(() => {
+                router.refresh();
+              }, 500);
+            }
+          }
+        }
+      } catch {
+        // Ignore polling errors
+      }
+    };
+
+    // Start polling every 800ms
+    pollingRef.current = setInterval(pollProgress, 800);
+    // Initial poll
+    pollProgress();
+
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, [isGenerating, campaignDomain, router]);
+
+  // Smoothly animate progress bar
+  useEffect(() => {
+    if (!isGenerating) {
+      setDisplayProgress(0);
+      targetProgressRef.current = 0;
+      return;
+    }
+
+    targetProgressRef.current = serverProgress;
+
+    const interval = setInterval(() => {
+      setDisplayProgress(prev => {
+        const target = targetProgressRef.current;
+        if (prev < target) {
+          const diff = target - prev;
+          const increment = Math.max(0.5, diff * 0.1);
+          return Math.min(prev + increment, target);
+        }
+        return prev;
+      });
+    }, 50);
+
+    return () => clearInterval(interval);
+  }, [isGenerating, serverProgress]);
+
+  // Update step index based on server status type
+  useEffect(() => {
+    if (serverStatusType) {
+      const stepIdx = statusToStepIndex[serverStatusType];
+      if (stepIdx !== undefined && stepIdx !== currentStep) {
+        setCurrentStep(stepIdx);
+      }
+    }
+  }, [serverStatusType, currentStep]);
 
   const handleRegenerateEmails = async () => {
     if (!campaign || isRegenerating) return;
@@ -238,6 +361,122 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
 
   // Convert debugData to liveDebug format if we have debugData but not liveDebug
   const effectiveLiveDebug = liveDebug || (debugData ? convertDebugDataToLiveDebug(debugData) : null);
+
+  // Progress for display (capped at 99% until complete)
+  const progress = Math.min(displayProgress, 99);
+
+  // If campaign is generating, show the loading UI
+  if (isGenerating) {
+    return (
+      <div className="min-h-screen bg-[#F0F9FF] flex items-center justify-center p-6 font-sans">
+        {/* Background Ambient Glows */}
+        <div className="fixed top-0 left-1/4 w-[500px] h-[500px] bg-sky-200/40 rounded-full blur-[100px] pointer-events-none mix-blend-multiply" />
+        <div className="fixed bottom-0 right-1/4 w-[600px] h-[600px] bg-cyan-200/40 rounded-full blur-[100px] pointer-events-none mix-blend-multiply" />
+
+        {/* Unified Dynamic Insight Card */}
+        <div className="relative w-full max-w-[420px] aspect-[4/5] z-10">
+          
+          {/* Animated Progress Border */}
+          <div className="absolute -inset-[3px] rounded-[32px] overflow-hidden">
+             {/* Background track */}
+             <div className="absolute inset-0 border-4 border-slate-200/50 rounded-[32px]" />
+             
+             {/* Progress Fill - using SVG for precise path following */}
+             <svg className="absolute inset-0 w-full h-full transform -rotate-90 drop-shadow-[0_0_15px_rgba(14,165,233,0.3)]">
+               <rect
+                 x="2"
+                 y="2"
+                 width="100%"
+                 height="100%"
+                 rx="30"
+                 fill="none"
+                 stroke="url(#progressGradient)"
+                 strokeWidth="4"
+                 strokeLinecap="round"
+                 pathLength="100"
+                 strokeDasharray="100"
+                 strokeDashoffset={100 - progress}
+                 className="transition-all duration-300 ease-out w-[calc(100%-4px)] h-[calc(100%-4px)]"
+               />
+               <defs>
+                 <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                   <stop offset="0%" stopColor="#0ea5e9" />
+                   <stop offset="50%" stopColor="#6366f1" />
+                   <stop offset="100%" stopColor="#ec4899" />
+                 </linearGradient>
+               </defs>
+             </svg>
+          </div>
+
+          {/* Glass Card Content */}
+          <div className="absolute inset-0 bg-white/90 backdrop-blur-2xl rounded-[28px] shadow-2xl overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="px-6 py-5 border-b border-slate-100/50 flex items-center justify-between bg-white/50">
+              <img src="/coldmessage_logo.png" alt="ColdMessage" className="h-6 w-auto opacity-80" />
+              <div className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  {serverStatusType === 'complete' ? 'Finalizing' : 'Processing'}
+                </span>
+              </div>
+            </div>
+
+            {/* Main Content Area - Insight Teaser */}
+            <div className="flex-1 p-2 relative overflow-hidden flex flex-col">
+              <InsightTeaser 
+                liveDebug={liveDebug || {
+                  pipelineId: '',
+                  startedAt: new Date().toISOString(),
+                  currentAgent: 'Website Scraper',
+                  completedAgents: [],
+                  domain: campaignDomain || ''
+                }} 
+              />
+            </div>
+
+            {/* Footer Status */}
+            <div className="px-6 py-4 bg-slate-50/80 border-t border-slate-100 flex flex-col gap-2">
+              <div className="flex justify-between items-end mb-1">
+                <div>
+                   <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">Current Step</p>
+                   <p className="text-sm font-semibold text-slate-700">
+                     {serverStatus || loadingSteps[currentStep]?.text || 'Initializing...'}
+                   </p>
+                </div>
+                <span className="text-2xl font-bold text-slate-900 tabular-nums">
+                  {Math.round(progress)}%
+                </span>
+              </div>
+
+              {/* Mini progress bar */}
+              <div className="h-1 w-full bg-slate-200 rounded-full overflow-hidden">
+                <motion.div 
+                  className="h-full bg-sky-500"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${progress}%` }}
+                />
+              </div>
+
+              <p className="text-[10px] text-center text-slate-400 mt-2 font-medium">
+                Estimated time: ~{Math.max(0, Math.ceil((100 - progress) / 100 * 2.5))} minutes
+              </p>
+            </div>
+          </div>
+
+          {/* Debug Panel (if enabled) */}
+          {isDebugMode && (
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="absolute top-full left-0 right-0 mt-4"
+            >
+              <LiveDebugPanel liveDebug={liveDebug} isLoading={true} />
+            </motion.div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   // If no campaign data, show the domain entry form
   if (!campaign) {
