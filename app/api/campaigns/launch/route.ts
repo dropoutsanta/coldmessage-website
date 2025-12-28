@@ -99,6 +99,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Transform leads to EmailBison format
+    // Convert email_body newlines to <br> tags for HTML rendering
     const emailBisonLeads = leadsWithEmails.map((lead) => ({
       email: lead.email!,
       first_name: lead.first_name,
@@ -107,7 +108,7 @@ export async function POST(request: NextRequest) {
       title: lead.title,
       custom_fields: {
         email_subject: lead.email_subject || '',
-        email_body: lead.email_body || '',
+        email_body: (lead.email_body || '').replace(/\n/g, '<br>'),
         linkedin_url: lead.linkedin_url || '',
         why_picked: lead.why_picked || '',
       },
