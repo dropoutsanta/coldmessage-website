@@ -136,13 +136,16 @@ class EmailBisonClient {
    * Returns the created lead with its ID
    */
   async createLead(lead: EmailBisonLead): Promise<{ data: { id: number } }> {
-    return this.request<{ data: { id: number } }>(
+    console.log(`[EmailBison] Creating lead ${lead.email} with payload:`, JSON.stringify(lead));
+    const response = await this.request<{ data: { id: number } }>(
       '/api/leads',
       {
         method: 'POST',
         body: JSON.stringify(lead),
       }
     );
+    console.log(`[EmailBison] Created lead ${lead.email} -> ID: ${response.data?.id}, response:`, JSON.stringify(response));
+    return response;
   }
 
   /**

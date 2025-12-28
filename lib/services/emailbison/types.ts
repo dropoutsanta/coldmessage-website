@@ -27,6 +27,11 @@ export interface EmailBisonSequence {
   sequence_steps: EmailBisonSequenceStep[];
 }
 
+export interface EmailBisonCustomVariable {
+  name: string;
+  value: string;
+}
+
 export interface EmailBisonLead {
   id?: string;
   email: string;
@@ -34,7 +39,7 @@ export interface EmailBisonLead {
   last_name: string;
   company?: string;
   title?: string;
-  custom_fields?: Record<string, string>;
+  custom_variables?: EmailBisonCustomVariable[];
 }
 
 export interface EmailBisonWebhookPayload {

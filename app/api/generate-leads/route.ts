@@ -260,7 +260,7 @@ export async function POST(request: NextRequest) {
           .eq('id', campaignId);
         
         // Add sequence step using template variables
-        // Each lead's personalized email is stored in custom_fields (email_subject, email_body)
+        // Each lead's personalized email is stored in custom_variables (email_subject, email_body)
         await emailBisonClient.addSequenceSteps(emailbisonCampaignId, {
           title: 'Initial Outreach',
           sequence_steps: [
@@ -281,6 +281,13 @@ export async function POST(request: NextRequest) {
           .not('email', 'is', null);
         
         if (insertedLeads && insertedLeads.length > 0) {
+          // Debug: Log first lead's data to verify email_subject/email_body are present
+          console.log(`[generate-leads] First lead sample:`, JSON.stringify({
+            email: insertedLeads[0].email,
+            email_subject: insertedLeads[0].email_subject,
+            email_body_length: insertedLeads[0].email_body?.length || 0,
+          }));
+          
           // Create lookup function to find existing EmailBison lead IDs from our DB
           const lookupExistingLeadId = async (email: string): Promise<string | null> => {
             const { data } = await supabase
@@ -295,18 +302,19 @@ export async function POST(request: NextRequest) {
           
           // Upload leads to EmailBison with smart deduplication
           // Convert email_body newlines to <br> tags for HTML rendering
+          // EmailBison expects custom_variables as array of { name, value } objects
           const ebLeads = insertedLeads.map(lead => ({
             email: lead.email!,
             first_name: lead.first_name,
             last_name: lead.last_name,
             company: lead.company,
             title: lead.title,
-            custom_fields: {
-              email_subject: lead.email_subject || '',
-              email_body: (lead.email_body || '').replace(/\n/g, '<br>'),
-              linkedin_url: lead.linkedin_url || '',
-              why_picked: lead.why_picked || '',
-            },
+            custom_variables: [
+              { name: 'email_subject', value: lead.email_subject || '' },
+              { name: 'email_body', value: (lead.email_body || '').replace(/\n/g, '<br>') },
+              { name: 'linkedin_url', value: lead.linkedin_url || '' },
+              { name: 'why_picked', value: lead.why_picked || '' },
+            ],
           }));
           
           const uploadResponse = await emailBisonClient.uploadLeads(
