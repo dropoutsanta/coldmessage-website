@@ -66,10 +66,15 @@ function LoginForm() {
     setIsLoading(true);
     setError(null);
 
+    // #region agent log
+    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(returnUrl)}`;
+    fetch('http://127.0.0.1:7244/ingest/963b891c-d04d-4a93-bbc6-c60d82dcc595',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'login/page.tsx:signInWithGoogle',message:'OAuth starting',data:{origin:window.location.origin,host:window.location.host,redirectTo},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(returnUrl)}`,
+        redirectTo,
       },
     });
 
