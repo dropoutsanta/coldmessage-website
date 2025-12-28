@@ -8,6 +8,11 @@ primary_region = 'fra'
 
 [build]
 
+[build.args]
+  NEXT_PUBLIC_SUPABASE_URL = "https://wtvspzlarxqouxohmhzv.supabase.co"
+  NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind0dnNwemxhcnhxb3V4b2htaHp2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY0MDIzNjQsImV4cCI6MjA4MTk3ODM2NH0.qNJYlfMVUk7dM1YP0rxtsyDOfo8rdW709KXuxY9zEmI"
+  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY = "pk_test_51Sic1BQael34tdbzkltFDGnOaZyNkIBsdggVbEoyHbk0v3a1dSy7IniAZPWixbcQhFa8AcEiSLIXbxcN8bw76SMG00yHY61SNW"
+
 [http_service]
   internal_port = 3000
   force_https = true
