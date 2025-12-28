@@ -401,7 +401,10 @@ export default function CheckoutSheet({
 
               {/* Form State */}
               {state === 'form' && clientSecret && (
-                <div className="bg-white rounded-xl p-5 shadow-sm border border-slate-200">
+                <div 
+                  className="bg-white rounded-xl p-5 shadow-sm border border-slate-200"
+                  onPointerDownCapture={(e) => e.stopPropagation()}
+                >
                   <Elements stripe={stripePromise} options={elementsOptions}>
                     <PaymentForm
                       campaign={campaign}
