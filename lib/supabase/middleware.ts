@@ -2,14 +2,6 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 export async function updateSession(request: NextRequest) {
-  // Redirect www to non-www (must happen before any other logic)
-  const host = request.headers.get('host') || '';
-  if (host.startsWith('www.')) {
-    const newUrl = new URL(request.url);
-    newUrl.host = host.replace('www.', '');
-    return NextResponse.redirect(newUrl, 301);
-  }
-
   let supabaseResponse = NextResponse.next({
     request,
   });
