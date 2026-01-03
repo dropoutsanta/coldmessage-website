@@ -101,7 +101,12 @@ function InlineLoginForm({
 
   if (magicLinkSent) {
     return (
-      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 text-center">
+      <motion.div 
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
+        className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 text-center"
+      >
         <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-3">
           <svg
             className="w-5 h-5 text-emerald-600"
@@ -127,79 +132,97 @@ function InlineLoginForm({
         >
           Try another method
         </button>
-      </div>
+      </motion.div>
     );
   }
 
   return (
-    <div className="bg-sky-50 border border-sky-200 rounded-lg p-4">
-      <div className="flex items-center gap-2 mb-3">
-        <span className="text-lg">👋</span>
-        <div>
-          <p className="text-sm font-semibold text-slate-800">Welcome back!</p>
-          <p className="text-xs text-slate-500">Log in to continue checkout</p>
-        </div>
-      </div>
-
-      {error && (
-        <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-600">
-          {error}
-        </div>
-      )}
-
-      <div className="space-y-2">
-        <button
-          onClick={signInWithGoogle}
-          disabled={isLoading}
-          className="w-full flex items-center justify-center gap-2 bg-white text-slate-700 font-medium py-2.5 px-4 rounded-md border border-slate-200 hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+    <motion.div 
+      initial={{ opacity: 0, height: 0, marginTop: 0 }}
+      animate={{ opacity: 1, height: 'auto', marginTop: 16 }}
+      exit={{ opacity: 0, height: 0, marginTop: 0 }}
+      transition={{ duration: 0.75, ease: [0.25, 0.46, 0.45, 0.94] }}
+      className="overflow-hidden"
+    >
+      <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
         >
-          <svg className="w-4 h-4" viewBox="0 0 24 24">
-            <path
-              fill="#4285F4"
-              d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-            />
-            <path
-              fill="#34A853"
-              d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-            />
-            <path
-              fill="#FBBC05"
-              d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-            />
-            <path
-              fill="#EA4335"
-              d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-            />
-          </svg>
-          Continue with Google
-        </button>
+          <div className="text-center mb-4">
+            <p className="text-sm font-semibold text-slate-800">This account already exists.</p>
+            <p className="text-xs text-slate-500 mt-0.5">Log in to complete checkout</p>
+          </div>
 
-        <button
-          onClick={sendMagicLink}
-          disabled={isLoading}
-          className="w-full flex items-center justify-center gap-2 bg-slate-800 text-white font-medium py-2.5 px-4 rounded-md hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-        >
-          {isLoading ? (
-            <span className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-          ) : (
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
+          {error && (
+            <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-600">
+              {error}
+            </div>
+          )}
+
+          {/* Google Sign In */}
+          <motion.button
+            initial={{ opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.3 }}
+            onClick={signInWithGoogle}
+            disabled={isLoading}
+            className="w-full flex items-center justify-center gap-2.5 bg-white text-slate-900 font-semibold py-2.5 px-4 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm shadow-sm"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24">
               <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                fill="#4285F4"
+                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+              />
+              <path
+                fill="#34A853"
+                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+              />
+              <path
+                fill="#FBBC05"
+                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+              />
+              <path
+                fill="#EA4335"
+                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
               />
             </svg>
-          )}
-          Send magic link
-        </button>
+            Continue with Google
+          </motion.button>
+
+          {/* Divider */}
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3, delay: 0.4 }}
+            className="relative my-3"
+          >
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-slate-200" />
+            </div>
+            <div className="relative flex justify-center text-xs">
+              <span className="px-3 bg-slate-50 text-slate-400">or</span>
+            </div>
+          </motion.div>
+
+          {/* Magic Link Button */}
+          <motion.button
+            initial={{ opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.5 }}
+            onClick={sendMagicLink}
+            disabled={isLoading}
+            className="w-full flex items-center justify-center gap-2 bg-sky-500 text-white font-semibold py-2.5 px-4 rounded-lg hover:bg-sky-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+          >
+            {isLoading ? (
+              <span className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+            ) : null}
+            {isLoading ? 'Sending link...' : 'Send magic link'}
+          </motion.button>
+        </motion.div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -376,19 +399,46 @@ function PaymentForm({
                   setExistingUser(false);
                 }}
                 placeholder="you@example.com"
-                className={`w-full px-3 py-2.5 bg-white border rounded-md text-slate-900 placeholder:text-slate-400 
+                className={`w-full px-3 py-2.5 pr-10 bg-white border rounded-md text-slate-900 placeholder:text-slate-400 
                   transition-all duration-150 outline-none
                   ${
                     emailError
                       ? 'border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-500/20'
-                      : 'border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
+                      : existingUser
+                        ? 'border-sky-300 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20'
+                        : 'border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
                   }`}
               />
-              {isCheckingEmail && (
-                <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                  <div className="w-4 h-4 border-2 border-slate-200 border-t-slate-400 rounded-full animate-spin" />
-                </div>
-              )}
+              <AnimatePresence mode="wait">
+                {isCheckingEmail && (
+                  <motion.div 
+                    key="spinner"
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                    transition={{ duration: 0.2 }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2"
+                  >
+                    <div className="w-4 h-4 border-2 border-slate-200 border-t-sky-500 rounded-full animate-spin" />
+                  </motion.div>
+                )}
+                {!isCheckingEmail && existingUser && (
+                  <motion.div 
+                    key="user-icon"
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                    transition={{ duration: 0.2 }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2"
+                  >
+                    <div className="w-5 h-5 bg-sky-100 rounded-full flex items-center justify-center">
+                      <svg className="w-3 h-3 text-sky-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
             {emailError && (
               <p className="mt-1.5 text-sm text-red-500">{emailError}</p>
@@ -398,67 +448,80 @@ function PaymentForm({
       </div>
 
       {/* Inline Login Form - Show when email exists */}
-      {existingUser && !isLoggedIn && (
-        <InlineLoginForm
-          email={email}
-          onLoginSuccess={handleLoginSuccess}
-          campaignSlug={campaign.slug}
-        />
-      )}
+      <AnimatePresence>
+        {existingUser && !isLoggedIn && (
+          <InlineLoginForm
+            email={email}
+            onLoginSuccess={handleLoginSuccess}
+            campaignSlug={campaign.slug}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Payment Element - Only show if not an existing user or already logged in */}
-      {(!existingUser || isLoggedIn) && (
-        <>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">
-              Payment
-            </label>
-            <div className="bg-white border border-slate-300 rounded-md p-3 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all duration-150">
-              <PaymentElement
-                options={{
-                  layout: 'tabs',
-                }}
-              />
-            </div>
-          </div>
-
-          {/* Submit Button */}
-          <button
-            type="submit"
-            disabled={!stripe || isProcessing}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed
-              text-white font-semibold py-3 px-4 rounded-md transition-colors duration-150
-              flex items-center justify-center gap-2"
+      <AnimatePresence mode="wait">
+        {(!existingUser || isLoggedIn) && (
+          <motion.div
+            key="payment-form"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
+            className="overflow-hidden"
           >
-            {isProcessing ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Processing...
-              </>
-            ) : (
-              <>Pay ${price}</>
-            )}
-          </button>
+            <div className="space-y-4 pt-1">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                  Payment
+                </label>
+                <div className="bg-white border border-slate-300 rounded-md p-3 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all duration-150">
+                  <PaymentElement
+                    options={{
+                      layout: 'tabs',
+                    }}
+                  />
+                </div>
+              </div>
 
-          {/* Secure payment note */}
-          <p className="text-center text-xs text-slate-400 flex items-center justify-center gap-1.5">
-            <svg
-              className="w-3.5 h-3.5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-              />
-            </svg>
-            Payments are secure and encrypted
-          </p>
-        </>
-      )}
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={!stripe || isProcessing}
+                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed
+                  text-white font-semibold py-3 px-4 rounded-md transition-colors duration-150
+                  flex items-center justify-center gap-2"
+              >
+                {isProcessing ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>Pay ${price}</>
+                )}
+              </button>
+
+              {/* Secure payment note */}
+              <p className="text-center text-xs text-slate-400 flex items-center justify-center gap-1.5">
+                <svg
+                  className="w-3.5 h-3.5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                  />
+                </svg>
+                Payments are secure and encrypted
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </form>
   );
 }

@@ -1,10 +1,9 @@
 'use client';
 
 import { CampaignData, QualifiedLead } from '@/lib/types';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useSearchParams, useRouter } from 'next/navigation';
-import WorldMap from './WorldMap';
 import DomainEntryForm from './DomainEntryForm';
 import LiveDebugPanel from './LiveDebugPanel';
 import InsightTeaser from './InsightTeaser';
@@ -13,6 +12,7 @@ import PaymentSuccessModal from './PaymentSuccessModal';
 import { CampaignDebugData } from '@/lib/types/debug';
 import { LiveDebugData, LiveAgentResult } from '@/lib/services/campaignGenerator';
 import { createClient } from '@/lib/supabase/client';
+import { useStreamingCampaign } from '@/lib/hooks/useStreamingCampaign';
 
 interface Props {
   campaign: CampaignData | null;
@@ -120,11 +120,68 @@ const statusToStepIndex: Record<string, number> = {
 const loadingSteps = [
   { text: 'Analyzing your website...', status: 'scraping_website' },
   { text: 'Understanding your ideal customer profile...', status: 'analyzing_company' },
+  { text: 'Building LinkedIn search filters...', status: 'building_filters' },
   { text: 'Searching for qualified leads...', status: 'finding_leads' },
   { text: 'Retrieving lead data from LinkedIn...', status: 'waiting_for_leads' },
   { text: 'Crafting personalized emails...', status: 'writing_emails' },
   { text: 'Finalizing your campaign...', status: 'complete' },
 ];
+
+function VideoPlayer({ className = '' }: { className?: string }) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  const handlePlay = () => {
+    if (videoRef.current) {
+      videoRef.current.play();
+      setIsPlaying(true);
+    }
+  };
+
+  return (
+    <div className={`relative group h-full ${className}`}>
+      <div className="absolute -inset-1 bg-gradient-to-r from-sky-300 to-cyan-300 rounded-2xl blur opacity-30 group-hover:opacity-60 transition duration-1000"></div>
+      <div className="relative bg-black rounded-xl shadow-xl border border-slate-800 overflow-hidden h-full min-h-[200px] flex items-center justify-center">
+        <video
+          ref={videoRef}
+          src="/VSL.mov"
+          poster="/VSL-thumbnail.jpg"
+          controls={isPlaying}
+          playsInline
+          preload="metadata"
+          className="w-full h-full object-contain"
+          onPause={() => setIsPlaying(false)}
+        >
+          Your browser does not support the video tag.
+        </video>
+        
+        {!isPlaying && (
+          <div 
+            onClick={handlePlay}
+            className="absolute inset-0 flex items-center justify-center cursor-pointer bg-black/10 hover:bg-black/20 transition-all duration-300 group/btn pointer-events-auto"
+          >
+            <div className="text-center space-y-5 transform group-hover/btn:scale-105 transition-transform duration-700 ease-out">
+              <div className="relative">
+                {/* Main button */}
+                <div className="relative w-24 h-24 rounded-full bg-white/30 backdrop-blur-md flex items-center justify-center mx-auto border border-white/50 shadow-2xl group-hover/btn:shadow-3xl transition-all duration-700">
+                  <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-sky-500 to-cyan-400 flex items-center justify-center shadow-lg text-white group-hover/btn:shadow-sky-500/50 transition-all duration-700 border-2 border-white/20">
+                    <svg className="w-10 h-10 drop-shadow-sm" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z"/>
+                    </svg>
+                  </div>
+                </div>
+              </div>
+              
+              <p className="font-bold text-slate-700 text-lg drop-shadow-sm bg-white/80 backdrop-blur-sm px-4 py-1 rounded-full inline-block">
+                How It Works
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function CampaignPage({ campaign: initialCampaign, slug }: Props) {
   const [campaign, setCampaign] = useState<CampaignData | null>(initialCampaign);
@@ -198,6 +255,62 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
   // Check if campaign is still generating
   const isGenerating = campaign?.status === 'generating';
   const campaignDomain = campaign?.domain;
+  const campaignId = campaign?.id;
+  
+  // SSE Streaming for real-time generation updates
+  const streaming = useStreamingCampaign();
+  const hasStartedStreaming = useRef(false);
+  
+  // Start SSE streaming when campaign is generating
+  useEffect(() => {
+    if (isGenerating && campaignDomain && campaignId && !hasStartedStreaming.current && !streaming.isStreaming) {
+      hasStartedStreaming.current = true;
+      console.log('[CampaignPage] Starting SSE stream for', campaignDomain);
+      streaming.startGeneration(campaignDomain, campaignId, slug);
+    }
+  }, [isGenerating, campaignDomain, campaignId, slug, streaming]);
+  
+  // When streaming completes, refresh the page
+  useEffect(() => {
+    if (streaming.campaign && !streaming.isStreaming && hasStartedStreaming.current) {
+      console.log('[CampaignPage] Stream complete, refreshing...');
+      router.refresh();
+    }
+  }, [streaming.campaign, streaming.isStreaming, router]);
+  
+  // Use streaming progress if available, otherwise fall back to server progress
+  const effectiveProgress = streaming.isStreaming ? streaming.progress : serverProgress;
+  const effectiveCurrentAgent = streaming.isStreaming ? streaming.currentAgent : '';
+  
+  // Memoize the liveDebug object for streaming to prevent creating new object on every render
+  // This is critical - without memo, InsightTeaser's useEffect fires on every SSE event
+  const streamingLiveDebug = useMemo(() => {
+    if (!streaming.isStreaming) return null;
+    
+    const completedAgents = streaming.agents
+      .filter(a => a.status === 'complete')
+      .map(a => ({
+        name: a.name,
+        duration: a.duration || 0,
+        result: a.result || '',
+        output: a.output,
+      }));
+    
+    return {
+      pipelineId: streaming.pipelineId || '',
+      startedAt: new Date().toISOString(), // OK to recalculate - only when deps change
+      currentAgent: streaming.currentAgent,
+      completedAgents,
+      domain: campaignDomain || '',
+    };
+  }, [
+    streaming.isStreaming,
+    streaming.pipelineId,
+    streaming.currentAgent,
+    // Only depend on completed agents count, not the full agents array
+    streaming.agents.filter(a => a.status === 'complete').length,
+    campaignDomain,
+  ]);
   
   // Use persisted generation progress from database if available (for refresh scenarios)
   const persistedProgress = campaign?.generationProgress;
@@ -248,8 +361,18 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
     }
   }, [sessionId, slug, showPaymentSuccess, isCompletingCheckout]);
 
-  // Poll for progress when campaign is generating
+  // Legacy polling disabled - we now use SSE streaming instead
+  // This useEffect is kept as a fallback only if streaming fails to start
   useEffect(() => {
+    // Don't poll if streaming is active - SSE handles everything
+    if (streaming.isStreaming) {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+      return;
+    }
+    
     if (!isGenerating || !campaignDomain) {
       if (pollingRef.current) {
         clearInterval(pollingRef.current);
@@ -258,77 +381,40 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
       return;
     }
 
-    let consecutiveFailures = 0;
-    
-    const pollProgress = async () => {
-      try {
-        // First try to get in-memory progress (more detailed)
-        const response = await fetch(`/api/generate-campaign?domain=${encodeURIComponent(campaignDomain)}`);
-        
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success) {
-            consecutiveFailures = 0; // Reset on success
-            setHasRealTimeProgress(true); // We have real-time data
-            setServerStatus(data.message || '');
-            setServerProgress(data.progress || 0);
-            setServerStatusType(data.status || '');
-            if (data.liveDebug) {
-              setLiveDebug(data.liveDebug);
-            }
-            
-            // If generation is complete, refresh the page to get updated campaign data
-            if (data.status === 'complete' || data.progress >= 100) {
-              if (pollingRef.current) {
-                clearInterval(pollingRef.current);
-                pollingRef.current = null;
-              }
-              // Small delay to show 100% before refresh
-              setTimeout(() => {
+    // Only poll as fallback if streaming hasn't started after 5 seconds
+    const fallbackTimeout = setTimeout(() => {
+      if (!streaming.isStreaming && isGenerating) {
+        console.log('[CampaignPage] Streaming not started, falling back to status polling');
+        const pollStatus = async () => {
+          try {
+            const statusResponse = await fetch(`/api/campaigns/status?slug=${encodeURIComponent(slug)}`);
+            if (statusResponse.ok) {
+              const statusData = await statusResponse.json();
+              if (statusData.status && statusData.status !== 'generating') {
+                if (pollingRef.current) {
+                  clearInterval(pollingRef.current);
+                  pollingRef.current = null;
+                }
                 router.refresh();
-              }, 500);
-            }
-            return;
-          }
-        }
-        
-        // If in-memory progress not available (404 or error), check database for completion
-        consecutiveFailures++;
-        
-        // After a few failures, check if campaign is done in the database
-        if (consecutiveFailures >= 2) {
-          const statusResponse = await fetch(`/api/campaigns/status?slug=${encodeURIComponent(slug)}`);
-          if (statusResponse.ok) {
-            const statusData = await statusResponse.json();
-            // If campaign is no longer generating, refresh to show the result
-            if (statusData.status && statusData.status !== 'generating') {
-              if (pollingRef.current) {
-                clearInterval(pollingRef.current);
-                pollingRef.current = null;
               }
-              router.refresh();
-              return;
             }
+          } catch {
+            // Ignore polling errors
           }
-        }
-      } catch {
-        // Ignore polling errors, will retry
-        consecutiveFailures++;
+        };
+        pollingRef.current = setInterval(pollStatus, 3000);
+        pollStatus();
       }
-    };
-
-    // Start polling every 800ms
-    pollingRef.current = setInterval(pollProgress, 800);
-    // Initial poll
-    pollProgress();
+    }, 5000);
 
     return () => {
+      clearTimeout(fallbackTimeout);
       if (pollingRef.current) {
         clearInterval(pollingRef.current);
         pollingRef.current = null;
       }
     };
-  }, [isGenerating, campaignDomain, slug, router]);
+  }, [isGenerating, campaignDomain, slug, router, streaming.isStreaming]);
 
   // Smoothly animate progress bar
   useEffect(() => {
@@ -442,27 +528,18 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
     }
   };
 
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return 'Unknown';
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-      });
-    } catch {
-      return 'Unknown';
-    }
-  };
 
   // Convert debugData to liveDebug format if we have debugData but not liveDebug
   const effectiveLiveDebug = liveDebug || (debugData ? convertDebugDataToLiveDebug(debugData) : null);
 
   // Progress for display (capped at 99% until complete)
-  const progress = Math.min(displayProgress, 99);
+  // Prefer streaming progress when available
+  const progress = streaming.isStreaming 
+    ? Math.min(streaming.progress, 99) 
+    : Math.min(displayProgress, 99);
+  
+  // Consider streaming as real-time progress
+  const hasStreamingProgress = streaming.isStreaming && streaming.progress > 0;
 
   // If campaign is generating, show the loading UI
   if (isGenerating) {
@@ -475,38 +552,6 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
         {/* Unified Dynamic Insight Card */}
         <div className="relative w-full max-w-[420px] aspect-[4/5] z-10">
           
-          {/* Animated Progress Border */}
-          <div className="absolute -inset-[3px] rounded-[32px] overflow-hidden">
-             {/* Background track */}
-             <div className="absolute inset-0 border-4 border-slate-200/50 rounded-[32px]" />
-             
-             {/* Progress Fill - using SVG for precise path following */}
-             <svg className={`absolute inset-0 w-full h-full transform -rotate-90 drop-shadow-[0_0_15px_rgba(14,165,233,0.3)] ${!hasRealTimeProgress ? 'animate-spin' : ''}`}
-                  style={!hasRealTimeProgress ? { animationDuration: '3s' } : undefined}>
-               <rect
-                 x="2"
-                 y="2"
-                 width="100%"
-                 height="100%"
-                 rx="30"
-                 fill="none"
-                 stroke="url(#progressGradient)"
-                 strokeWidth="4"
-                 strokeLinecap="round"
-                 pathLength="100"
-                 strokeDasharray={hasRealTimeProgress ? "100" : "25 75"}
-                 strokeDashoffset={hasRealTimeProgress ? 100 - progress : 0}
-                 className="transition-all duration-300 ease-out w-[calc(100%-4px)] h-[calc(100%-4px)]"
-               />
-               <defs>
-                 <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                   <stop offset="0%" stopColor="#0ea5e9" />
-                   <stop offset="50%" stopColor="#6366f1" />
-                   <stop offset="100%" stopColor="#ec4899" />
-                 </linearGradient>
-               </defs>
-             </svg>
-          </div>
 
           {/* Glass Card Content */}
           <div className="absolute inset-0 bg-white/90 backdrop-blur-2xl rounded-[28px] shadow-2xl overflow-hidden flex flex-col">
@@ -524,13 +569,13 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
             {/* Main Content Area - Insight Teaser */}
             <div className="flex-1 p-2 relative overflow-hidden flex flex-col">
               <InsightTeaser 
-                liveDebug={liveDebug || persistedProgress || {
+                liveDebug={streamingLiveDebug || liveDebug || persistedProgress || {
                   pipelineId: '',
                   startedAt: new Date().toISOString(),
                   currentAgent: 'Website Scraper',
                   completedAgents: [],
                   domain: campaignDomain || ''
-                }} 
+                }}
               />
             </div>
 
@@ -540,13 +585,13 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
                 <div>
                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">Current Step</p>
                    <p className="text-sm font-semibold text-slate-700">
-                     {hasRealTimeProgress 
-                       ? (serverStatus || loadingSteps[currentStep]?.text || 'Processing...')
+                     {(hasStreamingProgress || hasRealTimeProgress)
+                       ? (streaming.currentAgent || serverStatus || loadingSteps[currentStep]?.text || 'Processing...')
                        : 'Generation in progress...'
                      }
                    </p>
                 </div>
-                {hasRealTimeProgress ? (
+                {(hasStreamingProgress || hasRealTimeProgress) ? (
                   <span className="text-2xl font-bold text-slate-900 tabular-nums">
                     {Math.round(progress)}%
                   </span>
@@ -561,7 +606,7 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
 
               {/* Mini progress bar */}
               <div className="h-1 w-full bg-slate-200 rounded-full overflow-hidden">
-                {hasRealTimeProgress ? (
+                {(hasStreamingProgress || hasRealTimeProgress) ? (
                   <motion.div 
                     className="h-full bg-sky-500"
                     initial={{ width: 0 }}
@@ -574,7 +619,7 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
               </div>
 
               <p className="text-[10px] text-center text-slate-400 mt-2 font-medium">
-                {hasRealTimeProgress 
+                {(hasStreamingProgress || hasRealTimeProgress)
                   ? `Estimated time: ~${Math.max(0, Math.ceil((100 - progress) / 100 * 2.5))} minutes`
                   : 'Please wait while we generate your campaign...'
                 }
@@ -654,153 +699,94 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
   }
 
   return (
-    <div className="min-h-screen bg-[#F0F9FF] text-slate-800 font-sans selection:bg-cyan-200 selection:text-cyan-900 relative overflow-hidden">
+    <div className="min-h-screen bg-[#F0F9FF] text-slate-800 font-sans selection:bg-cyan-200 selection:text-cyan-900 relative overflow-x-hidden">
       
       {/* Background Ambient Glows */}
       <div className="fixed top-0 left-1/4 w-[500px] h-[500px] bg-sky-200/40 rounded-full blur-[100px] pointer-events-none mix-blend-multiply" />
       <div className="fixed bottom-0 right-1/4 w-[600px] h-[600px] bg-cyan-200/40 rounded-full blur-[100px] pointer-events-none mix-blend-multiply" />
 
-      {/* Hero Section */}
-      <section className="px-6 py-12 border-b border-white/50 relative z-10 backdrop-blur-sm">
-        <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-          {/* Left */}
-          <div className="space-y-6">
-            <div>
-              <img src="/coldmessage_logo.png" alt="ColdMessage" className="h-32 w-auto drop-shadow-xl" />
-            </div>
-            
-            <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight leading-tight">
-              {campaign.companyName}
-            </h1>
-            <p className="text-xl text-slate-600 font-medium">
-              Your cold email campaign is ready to launch.
-            </p>
-            
-            {/* Last Updated */}
-            {campaign.updatedAt && (
-              <p className="text-sm text-slate-500">
-                Date Generated: <span className="font-semibold text-slate-700">{formatDate(campaign.updatedAt)}</span>
+      {/* Header - Fixed */}
+      <div className="fixed top-0 left-0 right-0 z-50 bg-white backdrop-blur-sm">
+        <div className="max-w-6xl mx-auto px-4 md:px-6 py-3 md:py-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 md:gap-6 min-w-0 w-1/2 md:w-auto md:flex-1">
+            <img src="/coldmessage_logo.png" alt="ColdMessage" className="h-6 md:h-12 w-auto shrink-0" />
+            <div className="min-w-0">
+              <h1 className="text-sm md:text-2xl font-extrabold text-slate-900 tracking-tight truncate">
+                {campaign.companyName}
+              </h1>
+              <p className="text-[10px] md:text-sm text-slate-500 font-medium leading-tight">
+                500 cold emails<br className="md:hidden" /> ready to send
               </p>
-            )}
-            
-            <div className="flex flex-wrap gap-3">
-              {[
-                'Start sending today',
-                '99% Deliverability',
-                '100% Personalized'
-              ].map((text, i) => (
-                <div key={i} className="px-4 py-2 rounded-lg bg-white/70 border border-sky-100 shadow-sm text-sm font-semibold text-slate-700">
-                  {text}
-                </div>
-              ))}
-            </div>
-            
-            {/* Trusted By */}
-            <div className="pt-8">
-              <p className="text-xs text-slate-400 font-medium mb-4">Trusted by</p>
-              <div className="flex items-center gap-8 flex-wrap">
-                {[
-                  { src: '/logos/instantly.svg', alt: 'Instantly' },
-                  { src: '/logos/heyreach.png', alt: 'HeyReach' },
-                  { src: '/logos/emailbison.png', alt: 'EmailBison' },
-                  { src: '/logos/talenthaul.svg', alt: 'TalentHaul' },
-                  { src: '/logos/ezshop.png', alt: 'EZShop' },
-                ].map((logo) => (
-                  <img
-                    key={logo.alt}
-                    src={logo.src}
-                    alt={logo.alt}
-                    className="h-6 w-auto object-contain opacity-50 grayscale"
-                  />
-                ))}
-              </div>
             </div>
           </div>
-
-          {/* Right - Loom Video */}
-          <div className="relative group">
-            <div className="absolute -inset-1 bg-gradient-to-r from-sky-300 to-cyan-300 rounded-2xl blur opacity-30 group-hover:opacity-60 transition duration-1000"></div>
-            <div className="relative bg-white rounded-xl shadow-xl border border-sky-100 overflow-hidden aspect-video flex items-center justify-center">
-              {campaign.loom_video_url ? (
-                <iframe
-                  src={campaign.loom_video_url.replace('share', 'embed')}
-                  allowFullScreen
-                  className="w-full h-full"
-                />
-              ) : (
-                <div className="text-center space-y-4">
-                  <div className="w-20 h-20 rounded-full bg-sky-50 flex items-center justify-center mx-auto shadow-inner">
-                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-sky-400 to-cyan-400 flex items-center justify-center shadow-lg text-white pl-1">
-                      <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                    </div>
-                  </div>
-                  <p className="font-semibold text-slate-500">Watch Campaign Walkthrough</p>
-                </div>
-              )}
-            </div>
-          </div>
+          
+          <button 
+            onClick={() => setShowCheckout(true)}
+            className="bg-slate-900 text-white font-bold py-2.5 md:py-3 px-4 md:px-8 rounded-lg hover:bg-slate-800 transform transition-all active:scale-[0.98] flex items-center justify-center gap-1.5 md:gap-2 text-xs md:text-base w-1/2 md:w-auto"
+          >
+            <span>Launch Campaign</span>
+            <span>🚀</span>
+          </button>
         </div>
-      </section>
+      </div>
+      
+      {/* Spacer for fixed header */}
+      <div className="h-16 md:h-20"></div>
 
-      {/* Campaign Summary */}
-      <section className="px-6 py-12 relative z-10">
+      {/* Campaign Summary - Compact */}
+      <section className="px-6 py-8 relative z-10">
         <div className="max-w-6xl mx-auto">
           
           {/* Section Header */}
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-slate-900 mb-2">Here's the campaign we built for you</h2>
-            <p className="text-slate-500">Review the targeting, numbers, and sample emails below. If everything looks good, launch it today.</p>
+          <div className="mb-6">
+            <h2 className="text-xl md:text-2xl font-bold text-slate-900 mb-1">Here's the campaign we built for you</h2>
+            <p className="text-slate-500 text-sm">Review the targeting, numbers, and sample emails below.</p>
           </div>
 
           <div className="space-y-4">
           
-          {/* Targeting Card */}
-          <div className="bg-white border border-slate-200 rounded-lg overflow-hidden flex flex-col lg:flex-row">
-            
-            {/* Left - Map Visual */}
-            <div className="lg:w-5/12 bg-slate-50 border-r border-slate-200 relative min-h-[300px] lg:min-h-full">
-              <div className="absolute top-4 left-4 z-10 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-md border border-slate-200 shadow-sm">
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Target Region</p>
-              </div>
-              <div className="absolute inset-0 p-4">
-                <WorldMap targetGeo={campaign.targetGeo} />
-              </div>
+          {/* Video + Targeting - Side by Side on Desktop */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Video */}
+            <div className="h-full">
+              <VideoPlayer className="h-full" />
             </div>
-
-            {/* Right - Data Points */}
-            <div className="lg:w-7/12 p-6 lg:p-8 flex flex-col justify-center">
-              <h2 className="font-semibold text-slate-900 text-lg mb-6">Targeting Criteria</h2>
-              
-              <div className="grid grid-cols-2 gap-y-8 gap-x-4">
-                <div>
-                  <p className="text-xs text-slate-400 uppercase tracking-wide mb-1.5 font-semibold">Titles</p>
-                  <p className="text-sm text-slate-900 font-medium leading-relaxed">{campaign.icpAttributes?.[0] || 'Founders, CEOs, VPs of Sales'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400 uppercase tracking-wide mb-1.5 font-semibold">Company Size</p>
-                  <p className="text-sm text-slate-900 font-medium leading-relaxed">{campaign.icpAttributes?.[1] || '10-200 employees'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400 uppercase tracking-wide mb-1.5 font-semibold">Industry</p>
-                  <p className="text-sm text-slate-900 font-medium leading-relaxed">{campaign.icpAttributes?.[2] || 'SaaS, Tech, Agencies'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400 uppercase tracking-wide mb-1.5 font-semibold">Primary Location</p>
-                  <p className="text-sm text-slate-900 font-medium leading-relaxed">{campaign.location}</p>
-                </div>
+            
+            {/* Targeting Card */}
+            <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+              <div className="px-6 py-3 bg-slate-50 border-b border-slate-200">
+                <h2 className="font-semibold text-slate-900 text-base">Targeting Criteria</h2>
               </div>
               
-              {/* Sample companies */}
-              <div className="mt-8 pt-6 border-t border-slate-100">
-                <p className="text-xs text-slate-400 uppercase tracking-wide mb-3 font-semibold">Sample companies</p>
-                <div className="flex flex-wrap gap-2">
+              <div className="p-6">
+                <div className="grid grid-cols-2 gap-6">
+                  <div>
+                    <p className="text-xs text-slate-400 uppercase tracking-wide mb-1 font-semibold">Titles</p>
+                    <p className="text-sm text-slate-900 font-medium">{campaign.icpAttributes?.[0] || 'Founders, CEOs, VPs of Sales'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-400 uppercase tracking-wide mb-1 font-semibold">Company Size</p>
+                    <p className="text-sm text-slate-900 font-medium">{campaign.icpAttributes?.[1] || '10-200 employees'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-400 uppercase tracking-wide mb-1 font-semibold">Industry</p>
+                    <p className="text-sm text-slate-900 font-medium">{campaign.icpAttributes?.[2] || 'SaaS, Tech, Agencies'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-400 uppercase tracking-wide mb-1 font-semibold">Location</p>
+                    <p className="text-sm text-slate-900 font-medium">{campaign.location}</p>
+                  </div>
+                </div>
+                
+                {/* Sample companies - inline */}
+                <div className="mt-4 pt-4 border-t border-slate-100 flex flex-wrap items-center gap-2">
+                  <p className="text-xs text-slate-400 uppercase tracking-wide font-semibold mr-2">Sample companies:</p>
                   {(() => {
-                    // Get unique companies from qualified leads, filtering out bad data
                     const isValidCompany = (name: string) => {
-                      if (!name || name.length > 50) return false; // Too long = probably bio text
-                      if (name.split(' ').length > 5) return false; // Too many words
-                      if (/^[a-z]/.test(name)) return false; // Starts with lowercase
-                      if (/\b(and|the|with|for|from|through|such as|not only)\b/i.test(name)) return false; // Contains sentence words
+                      if (!name || name.length > 50) return false;
+                      if (name.split(' ').length > 5) return false;
+                      if (/^[a-z]/.test(name)) return false;
+                      if (/\b(and|the|with|for|from|through|such as|not only)\b/i.test(name)) return false;
                       return true;
                     };
                     const companies = [...new Set((campaign.qualifiedLeads || []).map(lead => lead.company))]
@@ -810,14 +796,12 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
                     return (
                       <>
                         {companies.map((company, i) => (
-                          <span key={i} className="px-2.5 py-1 rounded-md text-xs font-medium bg-white text-slate-600 border border-slate-200 shadow-sm">
+                          <span key={i} className="px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600">
                             {company}
                           </span>
                         ))}
                         {remainingCount > 0 && (
-                          <span className="px-2.5 py-1 rounded-md text-xs font-medium bg-slate-100 text-slate-500">
-                            + {remainingCount} more
-                          </span>
+                          <span className="text-xs text-slate-400">+ {remainingCount} more</span>
                         )}
                       </>
                     );
@@ -827,41 +811,34 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
             </div>
           </div>
 
-          {/* The Numbers */}
+          {/* The Numbers - Simplified */}
           <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
             <div className="px-6 py-3 bg-slate-50 border-b border-slate-200">
-              <h2 className="font-semibold text-slate-900 text-sm">The numbers</h2>
+              <h2 className="font-semibold text-slate-900 text-base">The numbers</h2>
             </div>
             <div className="p-6">
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
-                <div>
+              <div className="flex justify-center gap-12 md:gap-16">
+                <div className="text-center">
                   <p className="text-2xl font-bold text-slate-900">{campaign.priceTier1Emails}</p>
                   <p className="text-xs text-slate-500">emails sent</p>
                 </div>
-                <div>
-                  <p className="text-2xl font-bold text-slate-900">7</p>
-                  <p className="text-xs text-slate-500">days to send</p>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-slate-900">~2%</p>
+                  <p className="text-xs text-slate-500">expected reply rate</p>
                 </div>
-                <div>
-                  <p className="text-2xl font-bold text-slate-900">~45%</p>
-                  <p className="text-xs text-slate-500">open rate</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-slate-900">~3%</p>
-                  <p className="text-xs text-slate-500">reply rate</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-sky-600">~15</p>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-sky-600">~{Math.round((campaign.priceTier1Emails || 500) * 0.02)}</p>
                   <p className="text-xs text-slate-500">expected replies</p>
                 </div>
               </div>
+              <p className="text-[10px] text-slate-400 mt-4 text-center">Results may vary based on industry and offer.</p>
             </div>
           </div>
 
           {/* What you get */}
           <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
             <div className="px-6 py-3 bg-slate-50 border-b border-slate-200">
-              <h2 className="font-semibold text-slate-900 text-sm">What you get</h2>
+              <h2 className="font-semibold text-slate-900 text-base">What you get</h2>
             </div>
             <div className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
@@ -875,7 +852,7 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
                 </div>
                 <div className="flex items-start gap-3">
                   <span className="text-green-500 mt-0.5">✓</span>
-                  <span className="text-slate-700">Suggested follow-up campaigns to keep momentum</span>
+                  <span className="text-slate-700">Option to test multiple ICPs with additional campaigns</span>
                 </div>
               </div>
             </div>
@@ -886,11 +863,11 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
       </section>
 
       {/* Review Your Campaign */}
-      <section className="px-6 py-16 relative z-10">
+      <section className="px-6 py-10 relative z-10">
         <div className="max-w-6xl mx-auto">
           <div className="mb-8 flex items-start justify-between">
             <div>
-              <h2 className="text-2xl font-bold text-slate-900 mb-2">Review Your Prospects</h2>
+              <h2 className="text-xl md:text-2xl font-bold text-slate-900 mb-2">Review Your Prospects</h2>
               <p className="text-slate-500">
                 We found {(campaign.qualifiedLeads || []).length} high-intent leads. Click a row to preview the personalized email.
               </p>
@@ -933,7 +910,7 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
       </section>
 
       {/* CTA Section */}
-      <section className="px-6 py-24 relative z-10">
+      <section className="px-6 py-12 relative z-10">
         <div className="max-w-6xl mx-auto">
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
@@ -1067,6 +1044,39 @@ export default function CampaignPage({ campaign: initialCampaign, slug }: Props)
 }
 
 
+function LeadAvatar({ lead }: { lead: QualifiedLead }) {
+  const [showFallback, setShowFallback] = useState(!lead.profilePictureUrl);
+  const [showInitials, setShowInitials] = useState(false);
+  
+  if (showInitials) {
+    return (
+      <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-sm font-bold text-slate-500 shadow-sm">
+        {lead.name?.charAt(0) || '?'}
+      </div>
+    );
+  }
+  
+  if (showFallback) {
+    return (
+      <img
+        src="/linkedinavatar.png"
+        alt=""
+        className="w-10 h-10 rounded-full object-cover shadow-sm bg-slate-100"
+        onError={() => setShowInitials(true)}
+      />
+    );
+  }
+  
+  return (
+    <img
+      src={lead.profilePictureUrl}
+      alt=""
+      className="w-10 h-10 rounded-full object-cover shadow-sm"
+      onError={() => setShowFallback(true)}
+    />
+  );
+}
+
 function LeadSelector({ leads }: { leads: QualifiedLead[] }) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const selectedLead = leads[selectedIndex];
@@ -1110,21 +1120,7 @@ function LeadSelector({ leads }: { leads: QualifiedLead[] }) {
               <div className="flex items-start gap-3">
                 {/* Avatar */}
                 <div className="shrink-0 pt-1">
-                   {lead.profilePictureUrl ? (
-                      <img
-                        src={lead.profilePictureUrl}
-                        alt={lead.name}
-                        className="w-10 h-10 rounded-full object-cover shadow-sm"
-                      />
-                    ) : (
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shadow-sm transition-colors ${
-                        selectedIndex === index 
-                          ? 'bg-sky-500 text-white' 
-                          : 'bg-white border border-slate-200 text-slate-500 group-hover:border-sky-200'
-                      }`}>
-                        {lead.name.charAt(0)}
-                      </div>
-                    )}
+                  <LeadAvatar lead={lead} />
                 </div>
                 
                 <div className="flex-1 min-w-0">

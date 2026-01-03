@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import { generateCampaign } from '@/lib/services/campaignGenerator';
 import { domainToSlug } from '@/lib/utils/slugify';
 
 interface InitRequest {
@@ -118,9 +117,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Start generation in the background (fire-and-forget)
-    // We don't await this - it runs asynchronously
-    startBackgroundGeneration(cleanDomain, slug, campaignId, debug);
+    // NOTE: Background generation removed - CampaignPage will trigger SSE streaming
+    // The campaign will be updated via the /api/generate-campaign/stream endpoint
 
     // Return immediately with the slug
     return NextResponse.json({
@@ -132,90 +130,6 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('[API/init] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
-}
-
-/**
- * Start campaign generation in the background
- */
-async function startBackgroundGeneration(
-  domain: string,
-  slug: string,
-  campaignId: string,
-  debug: boolean
-) {
-  try {
-    console.log(`[API/init] Starting background generation for ${domain} (slug: ${slug})`);
-    
-    const result = await generateCampaign({
-      domain,
-      slug,
-      captureDebug: debug,
-      campaignId,
-    });
-
-    const { campaign: campaignData, debugData } = result;
-
-    // Transform to database format and update the placeholder campaign
-    const updatedCampaign = {
-      company_name: campaignData.companyName,
-      website_url: campaignData.websiteUrl,
-      location: campaignData.location,
-      helps_with: campaignData.helpsWith,
-      great_at: campaignData.greatAt,
-      icp_attributes: campaignData.icpAttributes,
-      qualified_leads: (campaignData.qualifiedLeads || []).map((lead) => ({
-        id: lead.id,
-        name: lead.name,
-        title: lead.title,
-        company: lead.company,
-        linkedin_url: lead.linkedinUrl,
-        profile_picture_url: lead.profilePictureUrl,
-        why_picked: lead.whyPicked,
-        email_subject: lead.emailSubject,
-        email_body: lead.emailBody,
-      })),
-      target_geo: campaignData.targetGeo,
-      sales_navigator_url: campaignData.salesNavigatorUrl || null,
-      company_profile: campaignData.companyProfile || null,
-      icp_personas: campaignData.icpPersonas || null,
-      persona_rankings: campaignData.personaRankings || null,
-      linkedin_filters: campaignData.linkedinFilters || null,
-      pipeline_debug: campaignData.pipelineDebug || null,
-      status: 'draft', // Generation complete
-      updated_at: new Date().toISOString(),
-    };
-
-    if (supabaseAdmin) {
-      const { error } = await supabaseAdmin
-        .from('campaigns')
-        .update(updatedCampaign)
-        .eq('id', campaignId);
-
-      if (error) {
-        console.error('[API/init] Failed to update campaign after generation:', error);
-        // Update status to error
-        await supabaseAdmin
-          .from('campaigns')
-          .update({ status: 'error', updated_at: new Date().toISOString() })
-          .eq('id', campaignId);
-      } else {
-        console.log(`[API/init] Campaign ${slug} generation complete`);
-      }
-    }
-  } catch (error) {
-    console.error('[API/init] Background generation failed:', error);
-    
-    // Update status to error
-    if (supabaseAdmin) {
-      await supabaseAdmin
-        .from('campaigns')
-        .update({
-          status: 'error',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', campaignId);
-    }
   }
 }
 
